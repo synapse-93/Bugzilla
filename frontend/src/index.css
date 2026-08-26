@@ -1,0 +1,31 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-width: 100%;
+  min-height: 100%;
+  margin: 0;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #1a2027;
+  color: #d9e0e8;
+}
+
+@media (max-width: 560px) {
+  h1 {
+    font-size: 34px !important;
+  }
+}
