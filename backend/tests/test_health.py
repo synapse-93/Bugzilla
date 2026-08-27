@@ -74,3 +74,17 @@ def test_cors_fallback_fails_closed():
     assert "Access-Control-Allow-Origin" not in response.headers
 
 
+def test_default_configuration_is_production_safe():
+    """Test that create_app() with no arguments defaults to production-safe settings."""
+    app = create_app()
+    assert app.config["DEBUG"] is False
+    assert app.config["TESTING"] is False
+
+
+def test_development_configuration_enables_debug():
+    """Test that create_app('development') explicitly enables debug mode."""
+    app = create_app("development")
+    assert app.config["DEBUG"] is True
+    assert app.config["TESTING"] is False
+
+
