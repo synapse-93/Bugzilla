@@ -1280,7 +1280,7 @@ Use it to understand concepts and workflows only. The implementation, informatio
 
 > **This section changes as implementation progresses. The architecture above does not get replaced by status updates.**
 
-## 2026-08-27 — Phase 1 Final Correction & Hardening
+## 2026-08-27 — Phase 2A Database Foundation & Extension Hardening
 
 ### Implemented files
 
@@ -1291,6 +1291,7 @@ backend/app/extensions.py
 backend/app/routes/__init__.py
 backend/app/routes/health.py
 backend/tests/test_health.py
+backend/tests/test_database.py
 backend/conftest.py
 backend/pytest.ini
 backend/run.py
@@ -1308,12 +1309,16 @@ docs/DEPLOYMENT.md
 README.md
 ```
 
-### Phase 1 packages actually present and pinned
+### Phase 2A packages actually present and pinned
 
 #### Backend (Runtime - requirements.txt)
 - `Flask==3.1.3`
 - `Flask-CORS==4.0.2`
 - `gunicorn==23.0.0`
+- `Flask-SQLAlchemy==3.1.1`
+- `SQLAlchemy==2.0.52`
+- `Flask-Migrate==4.1.0`
+- `psycopg[binary]==3.3.4`
 
 #### Backend (Dev/Test - requirements-dev.txt)
 - `pytest==8.4.2`
@@ -1331,25 +1336,23 @@ README.md
 
 ### Implemented functionality
 
-- Application factory pattern implemented in `backend/app/__init__.py`.
-- CORS configured via `Flask-CORS` in `backend/app/extensions.py` with configurable `CORS_ORIGINS`.
-- CORS fallback fails closed (`cors_origins = app.config.get("CORS_ORIGINS", [])`) preventing permissive fallback if `CORS_ORIGINS` is missing or undefined.
-- `backend/run.py` uses `debug=app.debug`, ensuring debug mode is strictly disabled (`False`) under `ProductionConfig`/`Config` while preserving debug capabilities in `DevelopmentConfig`.
-- `GET /api/health` registered and returns HTTP 200 JSON `{"status": "ok"}` with verified CORS headers.
-- Test suite in `backend/tests/test_health.py` contains 7 verified pytest tests covering application factory, status code, JSON response, status payload, approved origin CORS header echo, unapproved origin CORS header omission, and fail-closed fallback behavior.
-- Frontend contains a genuine, npm-generated, standalone `frontend/package-lock.json` free of Bun `.bun` paths, `link: true` artifacts, or `workspace:` references, enabling reproducible `npm ci` execution.
+- Centralized extensions: `cors = CORS()`, `db = SQLAlchemy()`, and `migrate = Migrate()` in `backend/app/extensions.py`.
+- Application factory: Unconditional extension initialization (`db.init_app(app)`, `migrate.init_app(app, db)`) in `backend/app/__init__.py` without conditional guards.
+- PostgreSQL URI normalization: `normalize_database_url()` in `backend/app/config.py` converts `postgres://` and `postgresql://` URI schemes to `postgresql+psycopg://` for SQLAlchemy 2.0 with psycopg 3.
+- Database configuration: Configured `SQLALCHEMY_TRACK_MODIFICATIONS = False` and default PostgreSQL connection targets across base, development, and production configurations without hardcoded credentials.
+- PostgreSQL test isolation: `TestingConfig` strictly uses `TEST_DATABASE_URL` (defaulting to local PostgreSQL test URI `postgresql+psycopg://localhost:5432/bugzilla_test`). SQLite fallback was completely removed, and no fallback to `DATABASE_URL` is permitted for tests.
+- Environment variables: `.env.example` updated with `DATABASE_URL=` placeholder.
+- Test suite: `backend/tests/test_database.py` verifies URI scheme normalization, extension registration in application factory, test configuration PostgreSQL isolation, and skips live DB queries cleanly when `TEST_DATABASE_URL` is unset.
+- Full pytest suite expanded to 16 collected tests (15 passed, 1 skipped due to unavailable live PostgreSQL instance).
 
 ### Verified Results
 
-- **pytest**: 7/7 passed in 0.18s
-- **frontend npm ci**: `cd frontend && npm ci` completed successfully in 2s with 0 vulnerabilities
-- **frontend typecheck**: `tsc --noEmit` passed with zero errors
-- **frontend build**: `vite build` generated production bundle in 285ms with 0 errors
-- **frontend security audit**: `npm audit` reported 0 vulnerabilities
-- **run.py debug mode**: verified `FLASK_ENV=production` starts with `* Debug mode: off` and `FLASK_ENV=development` starts with `* Debug mode: on`
-- **local Flask startup**: `python3 backend/run.py` successfully served HTTP 200 to live `curl` request at `/api/health`
-- **Gunicorn WSGI startup**: `gunicorn "app:create_app()"` successfully served HTTP 200 to live `curl` request at `/api/health`
-- **deployment configuration**: `vercel.json` configured with `buildCommand: cd frontend && npm run build` and `outputDirectory: frontend/dist`
+- **pytest**: 15 passed, 1 skipped in 0.76s (`test_health.py` 9/9 passed, `test_database.py` 6 passed, 1 skipped)
+- **PostgreSQL integration test**: NOT RUN — TEST_DATABASE_URL/PostgreSQL unavailable in container environment (no SQLite fallback permitted)
+- **frontend typecheck**: `tsc --noEmit` passed with 0 errors
+- **frontend build**: `vite build` generated production bundle in `frontend/dist` in 293ms with 0 errors
+- **application factory verification**: `create_app()` runs with `DEBUG=False, TESTING=False`; `create_app("development")` runs with `DEBUG=True, TESTING=False`
+- **Gunicorn WSGI startup**: `gunicorn "app:create_app()"` booted sync worker and served `/api/health` with HTTP 200 OK
 
 ### Current status
 
@@ -1358,7 +1361,8 @@ Phase 1 backend foundation:      VERIFIED & HARDENED
 Frontend build foundation:       VERIFIED, LOCKED & NPM-CLEAN
 Phase 1 frontend deployment:     VERIFIED & LIVE ON VERCEL
 GitHub → Vercel deployment flow: ENABLED
-Database:                        NOT STARTED
+Phase 2A database configuration: VERIFIED & HARDENED
+Database models & constraints:   NOT STARTED (Phase 2B)
 Authentication:                  NOT STARTED
 Projects:                        NOT STARTED
 Issues:                          NOT STARTED
@@ -1390,7 +1394,7 @@ pytest (already present)
 Implementation order:
 
 ```text
-2A database configuration + extension initialization
+2A database configuration + extension initialization (COMPLETE)
         ↓
 2B models + relationships + constraints
         ↓
@@ -1407,7 +1411,7 @@ No authentication, JWT, project CRUD, issue CRUD, comments UI, analytics, or fro
 
 ### Next exact slice
 
-**Phase 2A — Database configuration and extension initialization.** The implementation agent must first inspect the existing repository and this context file, then add only the approved Phase 2 database packages/configuration and initialize the extensions without creating the application models yet. It must test application startup and the existing Phase 1 health endpoint, inspect the diff, update this Living Project State with actual results, and commit only that slice.
+**Phase 2B — models + relationships + constraints.** Implement the 8 core SQLAlchemy entities (`User`, `Project`, `ProjectMember`, `Issue`, `Label`, `IssueLabel`, `Comment`, `Activity`) with foreign keys, unique constraints, and relationships.
 
 ---
 
@@ -1421,5 +1425,6 @@ No authentication, JWT, project CRUD, issue CRUD, comments UI, analytics, or fro
 | 2026-08-27 | Phase 1 hardening: pinned backend & frontend dependencies, generated frontend lockfile, separated requirements-dev.txt, strengthened CORS tests (6/6 passing), fixed docs/DEPLOYMENT.md endpoint path, removed non-existent CI mention in README.md |
 | 2026-08-27 | Phase 1 Final Correction: generated pure npm `frontend/package-lock.json` (free of `.bun` paths/workspace protocols), replaced hardcoded `debug=True` in `backend/run.py` with `debug=app.debug`, configured CORS fallback in `backend/app/__init__.py` to fail closed (`[]`), added CORS fallback test in `backend/tests/test_health.py` (7/7 passing), verified `npm ci`, verified Flask production/development debug modes, and verified Gunicorn WSGI startup |
 | 2026-08-27 | Phase 1 frozen: frontend production deployment on Vercel verified live; GitHub → Vercel automatic deployment flow established; Phase 2 database package set and isolated 2A–2F implementation sequence explicitly defined; environment-variable/CORS role clarified without changing the Phase 1 fail-closed baseline |
+| 2026-08-27 | Phase 2A database foundation & extension hardening: added pinned database dependencies (`Flask-SQLAlchemy==3.1.1`, `SQLAlchemy==2.0.52`, `Flask-Migrate==4.1.0`, `psycopg[binary]==3.3.4`), centralized `db` and `migrate` extensions in `backend/app/extensions.py`, wired unconditional extension initialization in `create_app()` factory, normalized PostgreSQL URI schemes for psycopg 3 in `backend/app/config.py`, removed SQLite fallback entirely, enforced strict `TEST_DATABASE_URL` separation for testing configuration, added test suite `backend/tests/test_database.py` (15/16 pytest passing, 1 skipped) |
 
 **END OF AUTHORITATIVE CONTEXT**

@@ -1,3 +1,4 @@
+import os
 import pytest
 from sqlalchemy import text
 from app import create_app
@@ -32,25 +33,28 @@ def test_normalize_database_url_none_or_empty():
     assert normalize_database_url("") is None
 
 
-def test_database_extensions_initialized():
-    """Test that SQLAlchemy and Migrate extensions are properly bound to the app."""
-    app = create_app(TestingConfig)
+def test_database_extensions_registered_in_app_factory():
+    """Test that SQLAlchemy and Migrate extensions are registered in the app factory."""
+    app = create_app("testing")
+    assert "sqlalchemy" in app.extensions
+    assert "migrate" in app.extensions
+
+
+def test_testing_config_uses_test_database_url_without_sqlite_or_prod_fallback():
+    """Test that TestingConfig is isolated to TEST_DATABASE_URL without SQLite or prod fallback."""
+    uri = TestingConfig.SQLALCHEMY_DATABASE_URI
+    assert uri is not None
+    assert uri.startswith("postgresql+psycopg://")
+    assert "sqlite" not in uri.lower()
+
+
+@pytest.mark.skipif(
+    not os.environ.get("TEST_DATABASE_URL"),
+    reason="TEST_DATABASE_URL not set; skipping live PostgreSQL integration test",
+)
+def test_postgres_live_connection_if_configured():
+    """Execute a real query against PostgreSQL only if TEST_DATABASE_URL is provided."""
+    app = create_app("testing")
     with app.app_context():
-        assert "sqlalchemy" in app.extensions
-        assert "migrate" in app.extensions
-        # Verify db engine can execute a query
         result = db.session.execute(text("SELECT 1")).scalar()
         assert result == 1
-
-
-def test_app_factory_handles_no_database_uri():
-    """Test that app factory initializes cleanly even without a database URI."""
-    class NoDbConfig:
-        TESTING = True
-        SQLALCHEMY_DATABASE_URI = None
-
-    app = create_app(NoDbConfig)
-    client = app.test_client()
-    response = client.get("/api/health")
-    assert response.status_code == 200
-    assert response.get_json() == {"status": "ok"}

@@ -31,7 +31,7 @@ class Config:
     # Database configuration
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = normalize_database_url(
-        os.environ.get("DATABASE_URL")
+        os.environ.get("DATABASE_URL", "postgresql+psycopg://localhost:5432/bugzilla")
     )
 
 
@@ -39,7 +39,7 @@ class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = normalize_database_url(
-        os.environ.get("DATABASE_URL")
+        os.environ.get("DATABASE_URL", "postgresql+psycopg://localhost:5432/bugzilla")
     )
 
 
@@ -47,7 +47,7 @@ class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
     SQLALCHEMY_DATABASE_URI = normalize_database_url(
-        os.environ.get("DATABASE_URL")
+        os.environ.get("DATABASE_URL", "postgresql+psycopg://localhost:5432/bugzilla")
     )
 
 
@@ -57,7 +57,7 @@ class TestingConfig(Config):
     DEBUG = True
     CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
     SQLALCHEMY_DATABASE_URI = normalize_database_url(
-        os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL") or "sqlite:///:memory:"
+        os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://localhost:5432/bugzilla_test")
     )
 
 

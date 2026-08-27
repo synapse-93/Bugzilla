@@ -21,13 +21,15 @@ def create_app(config_name=None):
     else:
         app.config.from_object(Config)
 
+    # Ensure database configuration defaults
+    app.config.setdefault("SQLALCHEMY_DATABASE_URI", Config.SQLALCHEMY_DATABASE_URI)
+    app.config.setdefault("SQLALCHEMY_TRACK_MODIFICATIONS", False)
+
     # Initialize extensions
     cors_origins = app.config.get("CORS_ORIGINS", [])
     cors.init_app(app, resources={r"/api/*": {"origins": cors_origins}})
-
-    if app.config.get("SQLALCHEMY_DATABASE_URI"):
-        db.init_app(app)
-        migrate.init_app(app, db)
+    db.init_app(app)
+    migrate.init_app(app, db)
 
     # Register blueprints
     app.register_blueprint(health_bp, url_prefix="/api")
