@@ -77,9 +77,11 @@ def test_cors_fallback_fails_closed():
 def test_default_configuration_is_production_safe(monkeypatch):
     """Test that create_app() with no arguments defaults to production-safe settings."""
     monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
     app = create_app()
     assert app.config["DEBUG"] is False
     assert app.config["TESTING"] is False
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == "postgresql+psycopg://test:test@localhost:5432/testdb"
 
 
 def test_development_configuration_enables_debug():

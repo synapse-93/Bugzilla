@@ -2,7 +2,13 @@ import os
 import pytest
 from sqlalchemy import text
 from app import create_app
-from app.config import Config, TestingConfig, normalize_database_url
+from app.config import (
+    Config,
+    DevelopmentConfig,
+    ProductionConfig,
+    TestingConfig,
+    normalize_database_url,
+)
 from app.extensions import db, migrate
 
 
@@ -50,14 +56,49 @@ def test_testing_config_uses_test_database_url_without_sqlite_or_prod_fallback()
         assert uri is None
 
 
-def test_app_factory_constructible_without_database_url(monkeypatch):
-    """Verify create_app constructs cleanly with DEBUG=False, TESTING=False when DB URL is absent."""
+def test_production_config_with_explicit_database_url_succeeds(monkeypatch):
+    """Verify ProductionConfig successfully loads and normalizes when DATABASE_URL is provided."""
+    test_db_url = "postgres://testuser:testpass@localhost:5432/testdb"
+    monkeypatch.setenv("DATABASE_URL", test_db_url)
     monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
-    app = create_app()
-    assert app is not None
-    assert app.config["DEBUG"] is False
+
+    # Class-level access normalizes postgres:// to postgresql+psycopg://
+    expected_uri = "postgresql+psycopg://testuser:testpass@localhost:5432/testdb"
+    assert ProductionConfig.SQLALCHEMY_DATABASE_URI == expected_uri
+
+    # App factory configuration loading
+    app = create_app("production")
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == expected_uri
     assert app.config["TESTING"] is False
-    assert "sqlalchemy" in app.extensions
+    assert app.config["DEBUG"] is False
+
+
+def test_production_config_without_database_url_fails(monkeypatch):
+    """Verify ProductionConfig fails loudly when DATABASE_URL is missing."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
+
+    with pytest.raises(ValueError) as exc_info:
+        _ = ProductionConfig.SQLALCHEMY_DATABASE_URI
+    assert "DATABASE_URL environment variable is required in production configuration." in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        create_app("production")
+    assert "DATABASE_URL environment variable is required in production configuration." in str(exc_info.value)
+
+
+def test_production_config_with_whitespace_database_url_fails(monkeypatch):
+    """Verify ProductionConfig rejects empty or whitespace-only DATABASE_URL."""
+    monkeypatch.setenv("DATABASE_URL", "   ")
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
+
+    with pytest.raises(ValueError) as exc_info:
+        _ = ProductionConfig.SQLALCHEMY_DATABASE_URI
+    assert "DATABASE_URL environment variable is required in production configuration." in str(exc_info.value)
+
+    with pytest.raises(ValueError) as exc_info:
+        create_app("production")
+    assert "DATABASE_URL environment variable is required in production configuration." in str(exc_info.value)
 
 
 def test_app_factory_development_constructible():
@@ -66,6 +107,13 @@ def test_app_factory_development_constructible():
     assert app.config["DEBUG"] is True
     assert app.config["TESTING"] is False
     assert "sqlalchemy" in app.extensions
+
+
+def test_app_factory_development_with_database_url(monkeypatch):
+    """Verify DevelopmentConfig normalizes DATABASE_URL when supplied."""
+    monkeypatch.setenv("DATABASE_URL", "postgres://devuser:devpass@localhost:5432/devdb")
+    app = create_app("development")
+    assert app.config["SQLALCHEMY_DATABASE_URI"] == "postgresql+psycopg://devuser:devpass@localhost:5432/devdb"
 
 
 @pytest.mark.skipif(

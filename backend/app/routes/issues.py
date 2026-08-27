@@ -163,7 +163,7 @@ def create_issue(project_id: int):
     if not user:
         return api_error("UNAUTHORIZED", "Invalid credentials", 401)
 
-    project = db.session.get(Project, project_id)
+    project = db.session.query(Project).filter_by(id=project_id).with_for_update().first()
     if not project:
         return api_error("NOT_FOUND", "Project not found", 404)
 
@@ -228,10 +228,10 @@ def create_issue(project_id: int):
     if details:
         return api_error("VALIDATION_ERROR", "Invalid issue data", 400, details)
 
-    # Safe issue numbering under transaction lock
+    # Safe issue numbering under project row lock
     max_num = db.session.query(func.coalesce(func.max(Issue.issue_number), 0)).filter(
         Issue.project_id == project_id
-    ).with_for_update().scalar()
+    ).scalar()
     next_number = max_num + 1
 
     issue = Issue(

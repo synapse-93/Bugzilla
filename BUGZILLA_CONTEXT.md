@@ -1399,11 +1399,26 @@ Production database deployment:  PLANNED
 
 ### Verified Results
 
-- **pytest**: 55 passed, 1 skipped in 6.67s (`backend/tests/` 56 collected test items across health, database, auth, models, projects, issues, jwt_config, and security_audit_fixes).
+- **pytest**: 58 passed, 2 skipped in 6.61s (`backend/tests/` 60 collected test items across health, database, auth, models, projects, issues, jwt_config, security_audit_fixes, and issue_concurrency).
+- **PostgreSQL integration & concurrency tests**: SKIPPED (2 tests skipped cleanly because `TEST_DATABASE_URL` is unconfigured in container sandbox).
 - **frontend typecheck**: `tsc --noEmit` passed with 0 errors.
-- **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 607ms.
+- **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 608ms.
+- **npm audit**: 0 vulnerabilities found.
 - **lint_applet**: passed with 0 errors.
 - **compile_applet**: build succeeded.
+
+### Production Database Configuration & Issue Concurrency Verification (2026-08-27)
+
+- **Production DATABASE_URL Enforcement (`backend/app/config.py`)**:
+  - `ProductionConfigMeta` and `ProductionConfig` enforce that `DATABASE_URL` environment variable is defined, non-empty, and non-whitespace in production mode.
+  - If `DATABASE_URL` is missing, `""`, or whitespace-only (`"   "`), configuration access or `create_app("production")` raises a descriptive `ValueError` immediately during initialization.
+  - `normalize_database_url()` continues to normalize `postgres://` and `postgresql://` connection strings to `postgresql+psycopg://` for psycopg 3 without altering valid explicit URLs.
+  - `DevelopmentConfig` and `TestingConfig` resolve dynamically while allowing optional DB URLs or dedicated test databases.
+- **Issue Number Concurrency Verification (`backend/app/routes/issues.py` & `backend/tests/test_issue_concurrency.py`)**:
+  - Investigated issue number generation under PostgreSQL concurrency. The parent `Project` row is locked using `db.session.query(Project).filter_by(id=project_id).with_for_update().first()` at the start of `create_issue(project_id)`.
+  - Serializing at the parent project level guarantees PostgreSQL row-level mutual exclusion during issue number calculation and insertion within a project, preventing duplicate `(project_id, issue_number)` collisions even when 0 issues initially exist, while allowing parallel issue creation across different projects.
+  - Implemented focused live integration test `backend/tests/test_issue_concurrency.py` using Python's standard `concurrent.futures.ThreadPoolExecutor` (8 workers, 15 concurrent threads creating issues in the same project).
+  - Test is guarded with `@pytest.mark.skipif(not os.environ.get("TEST_DATABASE_URL"), ...)` and skips cleanly without mock fallback when live PostgreSQL is unavailable.
 
 ### Security & Data-Integrity Audit Fixes (2026-08-27)
 
@@ -1470,5 +1485,6 @@ Production database deployment:  PLANNED
 | 2026-08-27 | Phase 4 Frontend Integration: built full React SPA with typed API client, authentication context, project workspace management, issue tracking table with search/filters, Kanban board, issue inspection & comments drawer with activity audit trail, analytics KPI dashboard, project settings with team & label managers; verified `tsc --noEmit` and `vite build` |
 | 2026-08-27 | Security Fix #1: Removed hardcoded JWT secret fallback `dev-jwt-secret-key-change-in-production`. Implemented explicit `JWT_SECRET_KEY` requirement for `ProductionConfig` with validation failure at config load time. Retained `Flask-JWT-Extended`. Added focused security test suite `backend/tests/test_jwt_config.py`. All 44 tests passing. |
 | 2026-08-27 | Security & Data-Integrity Audit Fixes: Enforced assignee project-membership checks (POST/PATCH), project-scoped label boundaries (POST/PATCH), finite issue status workflow transitions, resolution/status state consistency, strict sorting allowlists & order validation, query parameter enum/type filter validation, concurrent registration race condition handling with transaction rollback (409), and comment edit activity audit logging (`COMMENT_UPDATED`). Added 11 regression test suites in `test_security_audit_fixes.py`. All 55 backend tests passing. |
+| 2026-08-27 | Production DB Config & Issue Concurrency: Enforced non-empty/non-whitespace `DATABASE_URL` requirement in `ProductionConfig` via `ProductionConfigMeta` (fail-closed with `ValueError`), preserved PostgreSQL psycopg 3 normalization, verified per-project issue sequence generation concurrency by locking the parent `Project` row with `with_for_update()`, added live PostgreSQL concurrency test using `ThreadPoolExecutor` (skipped when `TEST_DATABASE_URL` is unset), added database config tests in `test_database.py`. All 58 backend tests passing (2 live Postgres tests skipped). |
 
 **END OF AUTHORITATIVE CONTEXT**
