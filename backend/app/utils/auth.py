@@ -1,5 +1,6 @@
 from functools import wraps
 from flask_jwt_extended import get_jwt_identity, verify_jwt_in_request
+from app.extensions import db
 from app.models.user import User
 from app.models.project_member import ProjectMember
 from app.utils.errors import api_error
@@ -12,7 +13,7 @@ def get_current_user() -> User | None:
         return None
     try:
         user_id = int(identity)
-        return User.query.get(user_id)
+        return db.session.get(User, user_id)
     except (ValueError, TypeError):
         return None
 

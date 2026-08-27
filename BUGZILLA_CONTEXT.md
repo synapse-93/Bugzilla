@@ -1399,23 +1399,58 @@ Production database deployment:  PLANNED
 
 ### Verified Results
 
-- **pytest**: 44 passed, 1 skipped in 1.59s (`backend/tests/` 45 collected test items across health, database, auth, models, projects, issues, jwt_config).
+- **pytest**: 55 passed, 1 skipped in 6.67s (`backend/tests/` 56 collected test items across health, database, auth, models, projects, issues, jwt_config, and security_audit_fixes).
 - **frontend typecheck**: `tsc --noEmit` passed with 0 errors.
-- **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 771ms.
+- **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 607ms.
 - **lint_applet**: passed with 0 errors.
 - **compile_applet**: build succeeded.
 
-### Security Fix #1 — Remove Hardcoded JWT Secret Fallback (2026-08-27)
+### Security & Data-Integrity Audit Fixes (2026-08-27)
 
+- **Issues Fixed**:
+  1. **Assignee Project-Membership Validation (`backend/app/routes/issues.py`)**:
+     - Both `create_issue` (POST) and `update_issue` (PATCH) validate that assigned users (`assignee_id`) exist (404 if missing) and hold active membership in the target project via `ProjectMember` query (400 `VALIDATION_ERROR` if from another project).
+     - Unassigning via `None`/`null` is cleanly supported and updates `assignee_id` to `None`.
+  2. **Issue Label Project-Boundary Validation (`backend/app/routes/issues.py`)**:
+     - Both POST and PATCH routes validate `label_ids` against the database to guarantee that all requested labels belong to the target `project_id`.
+     - Invalid or cross-project labels trigger a 400 `VALIDATION_ERROR` atomically prior to creating or updating `IssueLabel` records.
+     - Sending `label_ids: []` in PATCH atomically removes all label associations.
+  3. **Issue Status Transition Validation (`backend/app/routes/issues.py`)**:
+     - Defined explicit `ALLOWED_STATUS_TRANSITIONS` state machine enforcing valid workflow steps:
+       - `OPEN` -> `IN_PROGRESS`
+       - `IN_PROGRESS` -> `IN_REVIEW`, `OPEN`
+       - `IN_REVIEW` -> `RESOLVED`, `IN_PROGRESS`
+       - `RESOLVED` -> `CLOSED`, `OPEN`, `IN_PROGRESS`
+       - `CLOSED` -> `OPEN` (reopen)
+     - Disallowed transitions (e.g. `OPEN` -> `CLOSED`, `CLOSED` -> `RESOLVED`) are rejected with 400 `VALIDATION_ERROR`.
+  4. **Resolution/Status Consistency (`backend/app/routes/issues.py`)**:
+     - Prevented setting resolution on un-resolved issues (`OPEN`, `IN_PROGRESS`, `IN_REVIEW` cannot have a `resolution`).
+     - Allowed resolutions are restricted to `FIXED`, `WONT_FIX`, `DUPLICATE`, `INCOMPLETE`, `CANNOT_REPRODUCE`.
+     - Transitioning to `RESOLVED` or `CLOSED` assigns resolution (defaulting to `FIXED` if omitted) and sets `resolved_at = datetime.utcnow()`.
+     - Reopening an issue (e.g. to `OPEN` or `IN_PROGRESS`) clears `resolution` and `resolved_at` to `None`.
+  5. **Sorting Allowlist & Direction Validation (`backend/app/routes/issues.py`)**:
+     - Dynamic attribute lookup via `getattr` replaced with a strict allowlist: `created_at`, `updated_at`, `issue_number`, `priority`, `severity`, `status`, `title`.
+     - Order parameter strictly validated to `asc` or `desc` (case-insensitive).
+     - Invalid sort fields or order directions return structured 400 `VALIDATION_ERROR`.
+  6. **Query Filter Validation (`backend/app/routes/issues.py`)**:
+     - Strict enum validation for `status`, `type`, `priority`, `severity`.
+     - Strict type checking for `assignee_id` (integer or `unassigned`) and `label_id` (integer).
+     - Malformed filter values return structured 400 `VALIDATION_ERROR` instead of silent errors or crashes.
+  7. **Registration Uniqueness Race Handling (`backend/app/routes/auth.py`)**:
+     - Wrapped `db.session.commit()` in `register` route with `try...except IntegrityError`.
+     - Rolls back transaction cleanly on concurrent race collision and returns structured 409 `CONFLICT` without exposing SQLAlchemy stack traces.
+  8. **Comment Edit Activity Audit Trail (`backend/app/routes/comments.py`)**:
+     - Added `COMMENT_UPDATED` `Activity` log creation upon comment editing with actor, old_value preview, new_value preview, and metadata containing `comment_id`, committed atomically in the same database transaction.
 - **Files changed**:
-  - `backend/app/config.py`: Removed hardcoded fallback `dev-jwt-secret-key-change-in-production` from base `Config`. Implemented `ProductionConfigMeta` enforcing that `JWT_SECRET_KEY` MUST be explicitly configured and non-empty in environment variables at config load time, raising a descriptive `ValueError` otherwise. `DevelopmentConfig` maintains an explicit non-production local key (`dev-local-development-jwt-secret-not-for-production`) if unspecified. `TestingConfig` uses an isolated 32-byte test key (`test-only-jwt-secret-for-pytest-32bytes`).
-  - `.env.example`: Documented `JWT_SECRET_KEY=` placeholder without any hardcoded secret values.
-  - `backend/tests/test_jwt_config.py`: Added comprehensive security tests for production missing-secret failure, explicit secret loading, whitespace-only secret rejection, absence of the known insecure string in all active configs, valid token generation and protected-route verification, invalid token 401 response, missing token 401 response, and expired token 401 response.
-  - `backend/tests/test_database.py` & `backend/tests/test_health.py`: Updated `create_app()` factory invocation tests to supply test environment key via `monkeypatch`.
-- **Packages used**: No new package added. Existing `Flask-JWT-Extended` retained.
-- **Tests actually run**: `pytest -v` (44 passed, 1 skipped), `npm run lint` (`tsc --noEmit`), `npm run build` (`vite build`), `compile_applet`.
-- **Production missing-secret behavior tested**: YES — explicitly tested that `ProductionConfig.JWT_SECRET_KEY` and `create_app("production")` fail with `ValueError: JWT_SECRET_KEY environment variable is required in production configuration.` when `JWT_SECRET_KEY` is unset or whitespace.
-- **Remaining issues**: Remaining audit findings (e.g., password hashing work factor, rate limiting, audit findings #2+) are left for their respective dedicated fix tasks.
+  - `backend/app/routes/issues.py`
+  - `backend/app/routes/auth.py`
+  - `backend/app/routes/comments.py`
+  - `backend/app/utils/auth.py`
+  - `backend/tests/test_security_audit_fixes.py`
+  - `BUGZILLA_CONTEXT.md`
+- **Regression Tests Added**:
+  - `backend/tests/test_security_audit_fixes.py` (11 new comprehensive test suites covering all 8 issues and their edge cases).
+  - All 55 test cases in the test suite pass cleanly with 0 warnings.
 
 ---
 
@@ -1434,5 +1469,6 @@ Production database deployment:  PLANNED
 | 2026-08-27 | Phase 3 Core API: implemented blueprints for `auth`, `projects`, `issues`, `labels`, `comments`, `activities`, and `analytics` with JWT and RBAC enforcement; added API error handling and validation; expanded pytest suite to 36 passed tests |
 | 2026-08-27 | Phase 4 Frontend Integration: built full React SPA with typed API client, authentication context, project workspace management, issue tracking table with search/filters, Kanban board, issue inspection & comments drawer with activity audit trail, analytics KPI dashboard, project settings with team & label managers; verified `tsc --noEmit` and `vite build` |
 | 2026-08-27 | Security Fix #1: Removed hardcoded JWT secret fallback `dev-jwt-secret-key-change-in-production`. Implemented explicit `JWT_SECRET_KEY` requirement for `ProductionConfig` with validation failure at config load time. Retained `Flask-JWT-Extended`. Added focused security test suite `backend/tests/test_jwt_config.py`. All 44 tests passing. |
+| 2026-08-27 | Security & Data-Integrity Audit Fixes: Enforced assignee project-membership checks (POST/PATCH), project-scoped label boundaries (POST/PATCH), finite issue status workflow transitions, resolution/status state consistency, strict sorting allowlists & order validation, query parameter enum/type filter validation, concurrent registration race condition handling with transaction rollback (409), and comment edit activity audit logging (`COMMENT_UPDATED`). Added 11 regression test suites in `test_security_audit_fixes.py`. All 55 backend tests passing. |
 
 **END OF AUTHORITATIVE CONTEXT**

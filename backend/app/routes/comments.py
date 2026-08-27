@@ -65,10 +65,14 @@ def create_comment(project_id: int, issue_id: int):
 @jwt_required()
 @require_project_access()
 def update_comment(project_id: int, issue_id: int, comment_id: int):
-    """Update a comment (author only)."""
+    """Update a comment (author only) and record activity audit log."""
     user = get_current_user()
     if not user:
         return api_error("UNAUTHORIZED", "Invalid credentials", 401)
+
+    issue = Issue.query.filter_by(id=issue_id, project_id=project_id).first()
+    if not issue:
+        return api_error("NOT_FOUND", "Issue not found", 404)
 
     comment = Comment.query.filter_by(id=comment_id, issue_id=issue_id).first()
     if not comment:
@@ -82,7 +86,20 @@ def update_comment(project_id: int, issue_id: int, comment_id: int):
     if not body:
         return api_error("VALIDATION_ERROR", "Comment body cannot be empty", 400)
 
-    comment.body = body
+    old_body = comment.body
+    if old_body != body:
+        comment.body = body
+        # Activity record for comment update
+        activity = Activity(
+            issue_id=issue.id,
+            actor_id=user.id,
+            action_type="COMMENT_UPDATED",
+            old_value=old_body[:100] + ("..." if len(old_body) > 100 else ""),
+            new_value=body[:100] + ("..." if len(body) > 100 else ""),
+        )
+        activity.set_metadata({"comment_id": comment.id})
+        db.session.add(activity)
+
     db.session.commit()
     return jsonify({"comment": comment.to_dict()}), 200
 

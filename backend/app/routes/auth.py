@@ -1,6 +1,7 @@
 import re
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import create_access_token, jwt_required
+from sqlalchemy.exc import IntegrityError
 from app.extensions import db
 from app.models.user import User
 from app.utils.auth import get_current_user
@@ -13,7 +14,7 @@ EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 @auth_bp.route("/auth/register", methods=["POST"])
 def register():
-    """Register a new user account."""
+    """Register a new user account with duplicate race protection."""
     data = request.get_json(silent=True)
     if not data:
         return api_error("VALIDATION_ERROR", "JSON body is required", 400)
@@ -33,7 +34,7 @@ def register():
     if details:
         return api_error("VALIDATION_ERROR", "Input validation failed", 400, details)
 
-    # Check uniqueness
+    # Check uniqueness (defense-in-depth pre-check)
     if User.query.filter_by(username=username).first():
         return api_error("CONFLICT", "Username is already registered", 409, {"username": "Username already in use"})
     if User.query.filter_by(email=email).first():
@@ -42,7 +43,12 @@ def register():
     user = User(username=username, email=email)
     user.set_password(password)
     db.session.add(user)
-    db.session.commit()
+
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return api_error("CONFLICT", "Username or email is already registered", 409, {"conflict": "Username or email already in use"})
 
     access_token = create_access_token(identity=str(user.id))
     return jsonify({
