@@ -419,11 +419,19 @@ Use native `fetch` for HTTP. **Do not add Axios without a concrete requirement.*
 | `Flask` | REST API | Phase 1 |
 | `Flask-CORS` | CORS | Phase 1 |
 | `gunicorn` | production WSGI server | Phase 1 |
-| `SQLAlchemy` | ORM | database phase |
-| `psycopg` | PostgreSQL driver | database phase |
+| `SQLAlchemy` | ORM | Phase 2 |
+| `Flask-SQLAlchemy` | Flask integration for SQLAlchemy | Phase 2 |
+| `Flask-Migrate` | Alembic migration integration | Phase 2 |
+| `psycopg[binary]` | PostgreSQL driver | Phase 2 |
 | `Flask-JWT-Extended` | JWT authentication | auth phase |
 | `bcrypt` | password hashing | auth phase |
 | `pytest` | backend tests | Phase 1 onward |
+
+### Phase 2 package decision
+
+The database foundation uses **SQLAlchemy + Flask-SQLAlchemy + Flask-Migrate + psycopg[binary]**. SQLAlchemy remains the ORM; Flask-SQLAlchemy supplies Flask lifecycle/config integration; Flask-Migrate supplies Alembic-based migrations; psycopg[binary] supplies the PostgreSQL driver. Do not add another ORM, migration framework, database driver, or database abstraction.
+
+Exact package versions must be resolved and pinned by the implementation agent during Phase 2 from a compatible dependency set. The agent must record the resolved versions in the Living Project State after installation and verification; it must not use `latest` or unpinned runtime dependencies.
 
 ## Package decision rule
 
@@ -812,24 +820,71 @@ Verification:
 - `/api/health` responds
 - frontend production build passes
 
-**Current Phase 1 implementation exists; see Living Project State.**
+**Phase 1 is now frozen; see Living Project State for verified implementation and deployment status.**
 
 ## Phase 2 — Database foundation
 
-- SQLAlchemy integration
-- PostgreSQL connection configuration
-- models
-- migrations/schema strategy
-- transaction handling
-- database health check
-- isolated model tests
+### Exact scope
 
-Verification before continuing:
+1. Add the approved Phase 2 database packages only.
+2. Extend the existing Flask application factory through the centralized extensions module.
+3. Add PostgreSQL configuration without hardcoding credentials.
+4. Add SQLAlchemy models for User, Project, ProjectMember, Issue, Label, IssueLabel, Comment and Activity according to Section 8.
+5. Add Alembic/Flask-Migrate migration infrastructure.
+6. Generate the initial migration from the actual models.
+7. Apply the migration to a clean PostgreSQL database.
+8. Add a real database health endpoint that executes a real query.
+9. Add isolated model/constraint/migration tests.
+10. Run the complete Phase 1 regression suite after Phase 2 changes.
 
-- clean database initializes
-- application starts with configured DB
-- model tests pass
-- production connection is verified
+### Phase 2 implementation slices
+
+```text
+Phase 2A — database extension/configuration
+Phase 2B — core models and relationships
+Phase 2C — migration infrastructure + initial migration
+Phase 2D — real database health check
+Phase 2E — model/constraint tests
+Phase 2F — full regression + audit
+```
+
+Each slice should be independently reviewable and preferably committed separately. Do not combine authentication, project CRUD, issue CRUD, frontend redesign or analytics with these slices.
+
+### Phase 2 database rules
+
+- PostgreSQL is the target application database.
+- SQLAlchemy is the only ORM.
+- Flask-Migrate/Alembic is the migration mechanism.
+- Database schema must be migration-driven; do not use `db.create_all()` as the production schema mechanism.
+- Foreign keys must be explicit.
+- Unique constraints must be database-enforced.
+- Issue numbering must be safe under concurrent creation.
+- Mutations that modify related records must use transactions.
+- No plaintext credentials or secrets in source control.
+- The database health check must perform an actual database query.
+- No fake seed data solely to make health checks appear successful.
+
+### Phase 2 verification gate
+
+Phase 2 is not complete until all of the following are true:
+
+```text
+clean PostgreSQL database
+        ↓
+initial migration applies successfully
+        ↓
+Flask application starts
+        ↓
+real DB query succeeds
+        ↓
+model/constraint tests pass
+        ↓
+Phase 1 tests still pass
+        ↓
+frontend typecheck/build still pass
+        ↓
+AI-bullshit/security audit passes
+```
 
 ## Phase 3 — Authentication
 
@@ -935,10 +990,10 @@ Each feature must have a visible user benefit and a clear fallback/error state.
 
 ## Phase 10 — Production hardening and competition demo
 
-- frontend deployment on Vercel
+- final frontend deployment verification on Vercel (already established during Phase 1)
 - backend deployment
 - PostgreSQL production connection
-- CORS production origin
+- exact production CORS origin
 - environment variables
 - end-to-end smoke test
 - mobile/responsive check
@@ -956,6 +1011,12 @@ Each feature must have a visible user benefit and a clear fallback/error state.
 ## Frontend
 
 Vercel builds the Vite frontend from the repository.
+
+### Phase 1 deployment status
+
+The frontend has already been successfully deployed to Vercel and is reachable from the generated production deployment URL. GitHub-to-Vercel deployment triggering has also been enabled, so subsequent repository commits can produce new deployments.
+
+The currently deployed frontend is the **Phase 1 foundation only**. The UI correctly represents that the API is not yet connected to a production backend. Do not interpret the live frontend as proof that the Flask API or PostgreSQL are publicly deployed.
 
 Production frontend configuration uses:
 
@@ -977,6 +1038,8 @@ The backend deployment must provide its PostgreSQL connection string and product
 
 ## Environment variables
 
+Environment variables are configuration inputs, not application features. They must be introduced only when the corresponding deployment/integration requires them.
+
 Expected production configuration will include, as required by the implemented features:
 
 ```text
@@ -990,6 +1053,8 @@ Frontend:
 ```text
 VITE_API_URL
 ```
+
+`CORS_ORIGINS` is a backend configuration value controlling which browser origins may call the API. It is not a secret. It should contain the exact deployed frontend origin(s), not `*`, once the backend is publicly deployed. Phase 1's local fail-closed CORS behavior remains the baseline until a real production backend/frontend integration exists.
 
 `.env` files containing real secrets must never be committed. `.env.example` contains names/placeholders only.
 
@@ -1071,11 +1136,12 @@ The agent must:
 1. Read this entire file.
 2. Read the current repository structure.
 3. Inspect existing implementation before creating files.
-4. Identify the current phase.
+4. Identify the current phase and exact slice.
 5. Implement only the requested phase/slice.
 6. Preserve working previous phases.
 7. Use the package decisions above.
 8. Avoid inventing a new architecture.
+9. Never replace this context with a short status summary.
 
 ## While coding
 
@@ -1093,6 +1159,7 @@ The agent must:
 - avoid hardcoded fake analytics/data
 - avoid claiming AI functionality without an actual model/algorithm
 - avoid replacing working code with generated boilerplate
+- never silently change package choices or architecture
 
 ## Package discipline
 
@@ -1109,14 +1176,15 @@ If the reason is weak, do not add it.
 
 ## Phase isolation
 
-A phase is complete only when:
+A phase/slice is complete only when:
 
 ```text
 Implementation complete
 + tests pass
-+ build passes
++ build passes where applicable
 + relevant runtime smoke test passes
 + documentation updated
++ diff inspected
 ```
 
 Do not mix unrelated feature work into a phase commit.
@@ -1126,7 +1194,7 @@ Do not mix unrelated feature work into a phase commit.
 After every meaningful change, update **Living Project State** with:
 
 - date
-- phase
+- phase/slice
 - files added/changed
 - packages added/changed
 - functionality implemented
@@ -1182,6 +1250,17 @@ A supposedly isolated phase unexpectedly breaks previous phases.
 ### Deployment-only failure
 
 Local code works but environment variables, paths, build configuration, CORS or production server configuration prevent public deployment.
+
+### Database-specific generated nonsense
+
+- models exist but are never registered with the ORM
+- migration files do not match the actual models
+- migrations are bypassed with `create_all()`
+- relationships exist only as Python attributes without foreign keys
+- uniqueness is enforced only in Python rather than the database
+- issue numbers can collide under concurrent creation
+- database health endpoints return success without executing a query
+- test databases do not represent the PostgreSQL schema being deployed
 
 Every audit should explicitly report these categories as **PASS / FAIL / NOT YET APPLICABLE**.
 
@@ -1265,7 +1344,7 @@ README.md
 - **pytest**: 7/7 passed in 0.18s
 - **frontend npm ci**: `cd frontend && npm ci` completed successfully in 2s with 0 vulnerabilities
 - **frontend typecheck**: `tsc --noEmit` passed with zero errors
-- **frontend build**: `vite build` generated production bundle in `frontend/dist` in 285ms with 0 errors
+- **frontend build**: `vite build` generated production bundle in 285ms with 0 errors
 - **frontend security audit**: `npm audit` reported 0 vulnerabilities
 - **run.py debug mode**: verified `FLASK_ENV=production` starts with `* Debug mode: off` and `FLASK_ENV=development` starts with `* Debug mode: on`
 - **local Flask startup**: `python3 backend/run.py` successfully served HTTP 200 to live `curl` request at `/api/health`
@@ -1276,7 +1355,9 @@ README.md
 
 ```text
 Phase 1 backend foundation:      VERIFIED & HARDENED
-Frontend build foundation:      VERIFIED, LOCKED & NPM-CLEAN
+Frontend build foundation:       VERIFIED, LOCKED & NPM-CLEAN
+Phase 1 frontend deployment:     VERIFIED & LIVE ON VERCEL
+GitHub → Vercel deployment flow: ENABLED
 Database:                        NOT STARTED
 Authentication:                  NOT STARTED
 Projects:                        NOT STARTED
@@ -1286,13 +1367,47 @@ Search/filtering:                NOT STARTED
 Kanban:                          NOT STARTED
 Analytics:                       NOT STARTED
 Innovation:                      NOT STARTED
-Production backend deployment:   CONFIGURED (Procfile verified)
-Production frontend deployment:  CONFIGURED (vercel.json verified)
+Production backend deployment:   NOT STARTED
+Production database deployment:  NOT STARTED
 ```
+
+### Phase 1 gate
+
+**FROZEN.** No more Phase 1 feature work is required before Phase 2. Any future Phase 1 regression found during later work must be fixed as a regression, not by changing the Phase 2 architecture.
+
+### Phase 2 baseline decision
+
+**Phase 2 is the database foundation only.** The exact package set is:
+
+```text
+Flask-SQLAlchemy
+SQLAlchemy
+Flask-Migrate
+psycopg[binary]
+pytest (already present)
+```
+
+Implementation order:
+
+```text
+2A database configuration + extension initialization
+        ↓
+2B models + relationships + constraints
+        ↓
+2C Flask-Migrate/Alembic + initial migration
+        ↓
+2D real DB health query
+        ↓
+2E model/constraint/migration tests
+        ↓
+2F complete regression + audit
+```
+
+No authentication, JWT, project CRUD, issue CRUD, comments UI, analytics, or frontend redesign belongs in Phase 2.
 
 ### Next exact slice
 
-**Phase 2 — Database foundation.** Add SQLAlchemy + psycopg, PostgreSQL configuration, models and database verification in an isolated commit. Do not implement authentication, projects, issues or UI redesign in the database-foundation commit.
+**Phase 2A — Database configuration and extension initialization.** The implementation agent must first inspect the existing repository and this context file, then add only the approved Phase 2 database packages/configuration and initialize the extensions without creating the application models yet. It must test application startup and the existing Phase 1 health endpoint, inspect the diff, update this Living Project State with actual results, and commit only that slice.
 
 ---
 
@@ -1305,5 +1420,6 @@ Production frontend deployment:  CONFIGURED (vercel.json verified)
 | 2026-08-27 | Master context restored after accidental replacement by Phase 1 status summary |
 | 2026-08-27 | Phase 1 hardening: pinned backend & frontend dependencies, generated frontend lockfile, separated requirements-dev.txt, strengthened CORS tests (6/6 passing), fixed docs/DEPLOYMENT.md endpoint path, removed non-existent CI mention in README.md |
 | 2026-08-27 | Phase 1 Final Correction: generated pure npm `frontend/package-lock.json` (free of `.bun` paths/workspace protocols), replaced hardcoded `debug=True` in `backend/run.py` with `debug=app.debug`, configured CORS fallback in `backend/app/__init__.py` to fail closed (`[]`), added CORS fallback test in `backend/tests/test_health.py` (7/7 passing), verified `npm ci`, verified Flask production/development debug modes, and verified Gunicorn WSGI startup |
+| 2026-08-27 | Phase 1 frozen: frontend production deployment on Vercel verified live; GitHub → Vercel automatic deployment flow established; Phase 2 database package set and isolated 2A–2F implementation sequence explicitly defined; environment-variable/CORS role clarified without changing the Phase 1 fail-closed baseline |
 
 **END OF AUTHORITATIVE CONTEXT**
