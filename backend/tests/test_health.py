@@ -42,9 +42,22 @@ def test_health_endpoint_payload(client):
     assert data.get("status") == "ok"
 
 
-def test_health_endpoint_cors_headers(client):
-    """Test that GET /api/health includes CORS headers when requested with Origin."""
+def test_health_endpoint_cors_approved_origin(client):
+    """Test that GET /api/health returns exact CORS header for approved origin."""
     response = client.get("/api/health", headers={"Origin": "http://localhost:3000"})
     assert response.status_code == 200
-    assert "Access-Control-Allow-Origin" in response.headers
+    assert response.headers.get("Access-Control-Allow-Origin") == "http://localhost:3000"
+    assert response.is_json
+    data = response.get_json()
+    assert data == {"status": "ok"}
+
+
+def test_health_endpoint_cors_unapproved_origin(client):
+    """Test that GET /api/health does not grant CORS headers to unapproved origins."""
+    response = client.get("/api/health", headers={"Origin": "http://unauthorized-origin.com"})
+    assert response.status_code == 200
+    assert "Access-Control-Allow-Origin" not in response.headers
+    assert response.is_json
+    data = response.get_json()
+    assert data == {"status": "ok"}
 

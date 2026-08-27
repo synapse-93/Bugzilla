@@ -32,7 +32,7 @@ class TestingConfig(Config):
     """Testing configuration."""
     TESTING = True
     DEBUG = True
-    CORS_ORIGINS = ["*"]
+    CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
 
 config_by_name = {

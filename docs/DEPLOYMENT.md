@@ -32,7 +32,7 @@ Managed production database
 
 1. Build frontend with production configuration.
 2. Start backend with production environment variables.
-3. Verify `/health`.
+3. Verify `/api/health`.
 4. Verify backend can reach the database.
 5. Verify authentication from the public frontend.
 6. Verify the complete issue lifecycle against production data.

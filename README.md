@@ -9,7 +9,6 @@ This repository is structured for a rapid, production-oriented build:
 - `frontend/` — modern web application and developer workspace UI
 - `backend/` — API, authentication, issue workflow, collaboration, and analytics
 - `docs/` — architecture, workflow, and deployment notes
-- `.github/` — CI checks
 
 ## Planned core workflow
 
