@@ -74,8 +74,9 @@ def test_cors_fallback_fails_closed():
     assert "Access-Control-Allow-Origin" not in response.headers
 
 
-def test_default_configuration_is_production_safe():
+def test_default_configuration_is_production_safe(monkeypatch):
     """Test that create_app() with no arguments defaults to production-safe settings."""
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
     app = create_app()
     assert app.config["DEBUG"] is False
     assert app.config["TESTING"] is False

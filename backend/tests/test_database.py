@@ -50,8 +50,9 @@ def test_testing_config_uses_test_database_url_without_sqlite_or_prod_fallback()
         assert uri is None
 
 
-def test_app_factory_constructible_without_database_url():
+def test_app_factory_constructible_without_database_url(monkeypatch):
     """Verify create_app constructs cleanly with DEBUG=False, TESTING=False when DB URL is absent."""
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
     app = create_app()
     assert app is not None
     assert app.config["DEBUG"] is False

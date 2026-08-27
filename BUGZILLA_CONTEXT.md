@@ -1399,11 +1399,23 @@ Production database deployment:  PLANNED
 
 ### Verified Results
 
-- **pytest**: 36 passed, 1 skipped in 1.48s (`backend/tests/` 37 collected test items across health, database, auth, models, projects, issues).
+- **pytest**: 44 passed, 1 skipped in 1.59s (`backend/tests/` 45 collected test items across health, database, auth, models, projects, issues, jwt_config).
 - **frontend typecheck**: `tsc --noEmit` passed with 0 errors.
-- **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 663ms.
+- **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 771ms.
 - **lint_applet**: passed with 0 errors.
 - **compile_applet**: build succeeded.
+
+### Security Fix #1 — Remove Hardcoded JWT Secret Fallback (2026-08-27)
+
+- **Files changed**:
+  - `backend/app/config.py`: Removed hardcoded fallback `dev-jwt-secret-key-change-in-production` from base `Config`. Implemented `ProductionConfigMeta` enforcing that `JWT_SECRET_KEY` MUST be explicitly configured and non-empty in environment variables at config load time, raising a descriptive `ValueError` otherwise. `DevelopmentConfig` maintains an explicit non-production local key (`dev-local-development-jwt-secret-not-for-production`) if unspecified. `TestingConfig` uses an isolated 32-byte test key (`test-only-jwt-secret-for-pytest-32bytes`).
+  - `.env.example`: Documented `JWT_SECRET_KEY=` placeholder without any hardcoded secret values.
+  - `backend/tests/test_jwt_config.py`: Added comprehensive security tests for production missing-secret failure, explicit secret loading, whitespace-only secret rejection, absence of the known insecure string in all active configs, valid token generation and protected-route verification, invalid token 401 response, missing token 401 response, and expired token 401 response.
+  - `backend/tests/test_database.py` & `backend/tests/test_health.py`: Updated `create_app()` factory invocation tests to supply test environment key via `monkeypatch`.
+- **Packages used**: No new package added. Existing `Flask-JWT-Extended` retained.
+- **Tests actually run**: `pytest -v` (44 passed, 1 skipped), `npm run lint` (`tsc --noEmit`), `npm run build` (`vite build`), `compile_applet`.
+- **Production missing-secret behavior tested**: YES — explicitly tested that `ProductionConfig.JWT_SECRET_KEY` and `create_app("production")` fail with `ValueError: JWT_SECRET_KEY environment variable is required in production configuration.` when `JWT_SECRET_KEY` is unset or whitespace.
+- **Remaining issues**: Remaining audit findings (e.g., password hashing work factor, rate limiting, audit findings #2+) are left for their respective dedicated fix tasks.
 
 ---
 
@@ -1421,5 +1433,6 @@ Production database deployment:  PLANNED
 | 2026-08-27 | Phase 2B–2E models, schema migration & tests: implemented 8 core SQLAlchemy entities with strict constraints, generated initial Alembic migration `001_initial_schema.py`, implemented real `/api/health/db` ping endpoint, created `test_models.py` and `test_health_db.py` (24/25 pytest passing, 1 skipped) |
 | 2026-08-27 | Phase 3 Core API: implemented blueprints for `auth`, `projects`, `issues`, `labels`, `comments`, `activities`, and `analytics` with JWT and RBAC enforcement; added API error handling and validation; expanded pytest suite to 36 passed tests |
 | 2026-08-27 | Phase 4 Frontend Integration: built full React SPA with typed API client, authentication context, project workspace management, issue tracking table with search/filters, Kanban board, issue inspection & comments drawer with activity audit trail, analytics KPI dashboard, project settings with team & label managers; verified `tsc --noEmit` and `vite build` |
+| 2026-08-27 | Security Fix #1: Removed hardcoded JWT secret fallback `dev-jwt-secret-key-change-in-production`. Implemented explicit `JWT_SECRET_KEY` requirement for `ProductionConfig` with validation failure at config load time. Retained `Flask-JWT-Extended`. Added focused security test suite `backend/tests/test_jwt_config.py`. All 44 tests passing. |
 
 **END OF AUTHORITATIVE CONTEXT**
