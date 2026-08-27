@@ -22,7 +22,7 @@ def create_app(config_name=None):
         app.config.from_object(Config)
 
     # Initialize extensions
-    cors_origins = app.config.get("CORS_ORIGINS", "*")
+    cors_origins = app.config.get("CORS_ORIGINS", [])
     cors.init_app(app, resources={r"/api/*": {"origins": cors_origins}})
 
     # Register blueprints

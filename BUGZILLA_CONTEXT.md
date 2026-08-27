@@ -1201,7 +1201,7 @@ Use it to understand concepts and workflows only. The implementation, informatio
 
 > **This section changes as implementation progresses. The architecture above does not get replaced by status updates.**
 
-## 2026-08-27 — Phase 1 Hardened & Verified
+## 2026-08-27 — Phase 1 Final Correction & Hardening
 
 ### Implemented files
 
@@ -1254,15 +1254,20 @@ README.md
 
 - Application factory pattern implemented in `backend/app/__init__.py`.
 - CORS configured via `Flask-CORS` in `backend/app/extensions.py` with configurable `CORS_ORIGINS`.
+- CORS fallback fails closed (`cors_origins = app.config.get("CORS_ORIGINS", [])`) preventing permissive fallback if `CORS_ORIGINS` is missing or undefined.
+- `backend/run.py` uses `debug=app.debug`, ensuring debug mode is strictly disabled (`False`) under `ProductionConfig`/`Config` while preserving debug capabilities in `DevelopmentConfig`.
 - `GET /api/health` registered and returns HTTP 200 JSON `{"status": "ok"}` with verified CORS headers.
-- Test suite in `backend/tests/test_health.py` contains 6 verified pytest tests covering application factory, status code, JSON response, status payload, approved origin CORS header echo, and unapproved origin CORS header omission.
+- Test suite in `backend/tests/test_health.py` contains 7 verified pytest tests covering application factory, status code, JSON response, status payload, approved origin CORS header echo, unapproved origin CORS header omission, and fail-closed fallback behavior.
+- Frontend contains a genuine, npm-generated, standalone `frontend/package-lock.json` free of Bun `.bun` paths, `link: true` artifacts, or `workspace:` references, enabling reproducible `npm ci` execution.
 
 ### Verified Results
 
-- **pytest**: 6/6 passed in 0.19s
+- **pytest**: 7/7 passed in 0.18s
+- **frontend npm ci**: `cd frontend && npm ci` completed successfully in 2s with 0 vulnerabilities
 - **frontend typecheck**: `tsc --noEmit` passed with zero errors
-- **frontend build**: `vite build` generated production bundle in `frontend/dist` in 337ms with 0 errors
-- **frontend security audit**: `npm audit --no-workspaces` reported 0 vulnerabilities
+- **frontend build**: `vite build` generated production bundle in `frontend/dist` in 285ms with 0 errors
+- **frontend security audit**: `npm audit` reported 0 vulnerabilities
+- **run.py debug mode**: verified `FLASK_ENV=production` starts with `* Debug mode: off` and `FLASK_ENV=development` starts with `* Debug mode: on`
 - **local Flask startup**: `python3 backend/run.py` successfully served HTTP 200 to live `curl` request at `/api/health`
 - **Gunicorn WSGI startup**: `gunicorn "app:create_app()"` successfully served HTTP 200 to live `curl` request at `/api/health`
 - **deployment configuration**: `vercel.json` configured with `buildCommand: cd frontend && npm run build` and `outputDirectory: frontend/dist`
@@ -1271,7 +1276,7 @@ README.md
 
 ```text
 Phase 1 backend foundation:      VERIFIED & HARDENED
-Frontend build foundation:      VERIFIED & LOCKED
+Frontend build foundation:      VERIFIED, LOCKED & NPM-CLEAN
 Database:                        NOT STARTED
 Authentication:                  NOT STARTED
 Projects:                        NOT STARTED
@@ -1299,5 +1304,6 @@ Production frontend deployment:  CONFIGURED (vercel.json verified)
 | 2026-08-27 | Phase 1 backend foundation implemented |
 | 2026-08-27 | Master context restored after accidental replacement by Phase 1 status summary |
 | 2026-08-27 | Phase 1 hardening: pinned backend & frontend dependencies, generated frontend lockfile, separated requirements-dev.txt, strengthened CORS tests (6/6 passing), fixed docs/DEPLOYMENT.md endpoint path, removed non-existent CI mention in README.md |
+| 2026-08-27 | Phase 1 Final Correction: generated pure npm `frontend/package-lock.json` (free of `.bun` paths/workspace protocols), replaced hardcoded `debug=True` in `backend/run.py` with `debug=app.debug`, configured CORS fallback in `backend/app/__init__.py` to fail closed (`[]`), added CORS fallback test in `backend/tests/test_health.py` (7/7 passing), verified `npm ci`, verified Flask production/development debug modes, and verified Gunicorn WSGI startup |
 
 **END OF AUTHORITATIVE CONTEXT**

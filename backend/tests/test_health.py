@@ -61,3 +61,16 @@ def test_health_endpoint_cors_unapproved_origin(client):
     data = response.get_json()
     assert data == {"status": "ok"}
 
+
+def test_cors_fallback_fails_closed():
+    """Test that application factory without CORS_ORIGINS configured fails closed."""
+    class EmptyConfig:
+        TESTING = True
+
+    app = create_app(EmptyConfig)
+    client = app.test_client()
+    response = client.get("/api/health", headers={"Origin": "http://random-origin.com"})
+    assert response.status_code == 200
+    assert "Access-Control-Allow-Origin" not in response.headers
+
+
