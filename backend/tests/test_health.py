@@ -40,3 +40,11 @@ def test_health_endpoint_payload(client):
     data = response.get_json()
     assert data is not None
     assert data.get("status") == "ok"
+
+
+def test_health_endpoint_cors_headers(client):
+    """Test that GET /api/health includes CORS headers when requested with Origin."""
+    response = client.get("/api/health", headers={"Origin": "http://localhost:3000"})
+    assert response.status_code == 200
+    assert "Access-Control-Allow-Origin" in response.headers
+
