@@ -1,7 +1,7 @@
 import os
 from flask import Flask
 from app.config import config_by_name, Config
-from app.extensions import cors
+from app.extensions import cors, db, migrate
 from app.routes.health import health_bp
 
 
@@ -24,6 +24,10 @@ def create_app(config_name=None):
     # Initialize extensions
     cors_origins = app.config.get("CORS_ORIGINS", [])
     cors.init_app(app, resources={r"/api/*": {"origins": cors_origins}})
+
+    if app.config.get("SQLALCHEMY_DATABASE_URI"):
+        db.init_app(app)
+        migrate.init_app(app, db)
 
     # Register blueprints
     app.register_blueprint(health_bp, url_prefix="/api")
