@@ -1,0 +1,8 @@
+{
+  "name": "Bugzilla",
+  "description": "Modern developer issue tracking platform inspired by the core workflows of Bugzilla",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
