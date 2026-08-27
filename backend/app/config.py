@@ -39,5 +39,6 @@ config_by_name = {
     "development": DevelopmentConfig,
     "production": ProductionConfig,
     "testing": TestingConfig,
-    "default": DevelopmentConfig,
+    # A missing/unknown environment must never silently enable debug mode.
+    "default": ProductionConfig,
 }
