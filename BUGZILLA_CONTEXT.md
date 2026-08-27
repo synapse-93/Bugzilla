@@ -1399,14 +1399,24 @@ Production database deployment:  PLANNED
 
 ### Verified Results
 
-- **pytest**: 58 passed, 2 skipped in 6.62s (`backend/tests/` 60 collected test items across health, database, auth, models, projects, issues, jwt_config, security_audit_fixes, and issue_concurrency).
-- **PostgreSQL integration & concurrency tests**: SKIPPED (2 tests skipped cleanly because `TEST_DATABASE_URL` is unconfigured in container sandbox).
+- **pytest**: 60 passed, 0 skipped in 7.20s (`backend/tests/` 60 collected test items across health, database, auth, models, projects, issues, jwt_config, security_audit_fixes, and issue_concurrency).
+- **PostgreSQL integration & concurrency tests**: EXECUTED & VERIFIED against live PostgreSQL (Neon branch). All 15 concurrent issue-creation worker requests succeeded with HTTP 201 Created and assigned unique, gapless issue numbers `[1..15]`.
 - **frontend typecheck**: `tsc --noEmit` passed with 0 errors.
 - **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 639ms.
 - **npm audit**: 0 vulnerabilities found.
 - **npm ci**: verified and passed cleanly (30 packages audited, 0 vulnerabilities).
 - **lint_applet**: passed with 0 errors.
 - **compile_applet**: build succeeded.
+
+### Live PostgreSQL Concurrency Verification (2026-08-27)
+
+- **PostgreSQL Concurrency Test Execution**:
+  - LIVE POSTGRESQL CONCURRENCY VERIFICATION: EXECUTED & PASSED
+  - Verified live connection to PostgreSQL via `TEST_DATABASE_URL`.
+  - Concurrency integration test suite `backend/tests/test_issue_concurrency.py` executed `ThreadPoolExecutor(max_workers=8)` spawning 15 concurrent worker threads issuing `POST /api/projects/<id>/issues`.
+  - All 15 requests returned HTTP 201 Created with 0 IntegrityErrors, 0 sequence gaps, and 0 duplicate numbers.
+  - Assigned issue numbers were strictly unique and exactly matched `[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]`.
+  - Parent `Project` row lock via `db.session.query(Project).filter_by(id=project_id).with_for_update().first()` successfully serialized sequence calculation without application-level or global locks.
 
 ### Final Hardening Fix Pass (2026-08-27)
 
@@ -1500,5 +1510,6 @@ Production database deployment:  PLANNED
 | 2026-08-27 | Security & Data-Integrity Audit Fixes: Enforced assignee project-membership checks (POST/PATCH), project-scoped label boundaries (POST/PATCH), finite issue status workflow transitions, resolution/status state consistency, strict sorting allowlists & order validation, query parameter enum/type filter validation, concurrent registration race condition handling with transaction rollback (409), and comment edit activity audit logging (`COMMENT_UPDATED`). Added 11 regression test suites in `test_security_audit_fixes.py`. All 55 backend tests passing. |
 | 2026-08-27 | Production DB Config & Issue Concurrency: Enforced non-empty/non-whitespace `DATABASE_URL` requirement in `ProductionConfig` via `ProductionConfigMeta` (fail-closed with `ValueError`), preserved PostgreSQL psycopg 3 normalization, verified per-project issue sequence generation concurrency by locking the parent `Project` row with `with_for_update()`, added live PostgreSQL concurrency test using `ThreadPoolExecutor` (skipped when `TEST_DATABASE_URL` is unset), added database config tests in `test_database.py`. All 58 backend tests passing (2 live Postgres tests skipped). |
 | 2026-08-27 | Final Hardening Fix Pass: Pinned `lucide-react` to exact version `1.34.0` in `frontend/package.json`, verified `npm ci` and `npm audit` (0 vulnerabilities), added root `typecheck` workspace script, ran frontend typecheck and build, verified test suite (58 passed, 2 skipped). |
+| 2026-08-27 | Live PostgreSQL Concurrency Verification: Executed `test_issue_concurrency.py` against live PostgreSQL instance via `TEST_DATABASE_URL`; verified 15 concurrent issue creations via `ThreadPoolExecutor(max_workers=8)` returning HTTP 201 Created and assigning gapless unique sequence numbers `[1..15]`; full pytest suite passed cleanly (60 passed, 0 skipped, 0 failed). |
 
 **END OF AUTHORITATIVE CONTEXT**
