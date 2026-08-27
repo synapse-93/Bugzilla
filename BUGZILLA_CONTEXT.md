@@ -1399,13 +1399,26 @@ Production database deployment:  PLANNED
 
 ### Verified Results
 
-- **pytest**: 58 passed, 2 skipped in 6.61s (`backend/tests/` 60 collected test items across health, database, auth, models, projects, issues, jwt_config, security_audit_fixes, and issue_concurrency).
+- **pytest**: 58 passed, 2 skipped in 6.62s (`backend/tests/` 60 collected test items across health, database, auth, models, projects, issues, jwt_config, security_audit_fixes, and issue_concurrency).
 - **PostgreSQL integration & concurrency tests**: SKIPPED (2 tests skipped cleanly because `TEST_DATABASE_URL` is unconfigured in container sandbox).
 - **frontend typecheck**: `tsc --noEmit` passed with 0 errors.
-- **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 608ms.
+- **frontend build**: `vite build` produced production bundle in `dist/` cleanly in 639ms.
 - **npm audit**: 0 vulnerabilities found.
+- **npm ci**: verified and passed cleanly (30 packages audited, 0 vulnerabilities).
 - **lint_applet**: passed with 0 errors.
 - **compile_applet**: build succeeded.
+
+### Final Hardening Fix Pass (2026-08-27)
+
+- **Exact Dependency Pinning (`frontend/package.json`)**:
+  - Pinned `lucide-react` to exact version `"1.34.0"` matching `package-lock.json`.
+  - Added root `typecheck` alias script (`npm run typecheck --workspace=frontend`).
+  - Executed `npm ci` and `npm audit` confirming clean synchronization and 0 vulnerabilities.
+- **Live PostgreSQL Concurrency Verification Status**:
+  - LIVE POSTGRESQL CONCURRENCY VERIFICATION: NOT EXECUTED
+  - REASON: `TEST_DATABASE_URL` was not configured in the test environment.
+  - Concurrency implementation in `backend/app/routes/issues.py` uses row-level locking on the parent `Project` (`db.session.query(Project).filter_by(id=project_id).with_for_update().first()`), serializing issue creation within a project and preventing race conditions or duplicate sequence numbers without relying on in-memory or application-level locks.
+  - Concurrency integration test suite `backend/tests/test_issue_concurrency.py` uses `ThreadPoolExecutor(max_workers=8)` attempting 15 concurrent creations and skips cleanly without mock fallback when `TEST_DATABASE_URL` is unconfigured.
 
 ### Production Database Configuration & Issue Concurrency Verification (2026-08-27)
 
@@ -1486,5 +1499,6 @@ Production database deployment:  PLANNED
 | 2026-08-27 | Security Fix #1: Removed hardcoded JWT secret fallback `dev-jwt-secret-key-change-in-production`. Implemented explicit `JWT_SECRET_KEY` requirement for `ProductionConfig` with validation failure at config load time. Retained `Flask-JWT-Extended`. Added focused security test suite `backend/tests/test_jwt_config.py`. All 44 tests passing. |
 | 2026-08-27 | Security & Data-Integrity Audit Fixes: Enforced assignee project-membership checks (POST/PATCH), project-scoped label boundaries (POST/PATCH), finite issue status workflow transitions, resolution/status state consistency, strict sorting allowlists & order validation, query parameter enum/type filter validation, concurrent registration race condition handling with transaction rollback (409), and comment edit activity audit logging (`COMMENT_UPDATED`). Added 11 regression test suites in `test_security_audit_fixes.py`. All 55 backend tests passing. |
 | 2026-08-27 | Production DB Config & Issue Concurrency: Enforced non-empty/non-whitespace `DATABASE_URL` requirement in `ProductionConfig` via `ProductionConfigMeta` (fail-closed with `ValueError`), preserved PostgreSQL psycopg 3 normalization, verified per-project issue sequence generation concurrency by locking the parent `Project` row with `with_for_update()`, added live PostgreSQL concurrency test using `ThreadPoolExecutor` (skipped when `TEST_DATABASE_URL` is unset), added database config tests in `test_database.py`. All 58 backend tests passing (2 live Postgres tests skipped). |
+| 2026-08-27 | Final Hardening Fix Pass: Pinned `lucide-react` to exact version `1.34.0` in `frontend/package.json`, verified `npm ci` and `npm audit` (0 vulnerabilities), added root `typecheck` workspace script, ran frontend typecheck and build, verified test suite (58 passed, 2 skipped). |
 
 **END OF AUTHORITATIVE CONTEXT**

@@ -10,6 +10,7 @@
     "dev": "npm run dev --workspace=frontend",
     "build": "npm run build --workspace=frontend",
     "preview": "npm run preview --workspace=frontend",
-    "lint": "npm run typecheck --workspace=frontend"
+    "lint": "npm run typecheck --workspace=frontend",
+    "typecheck": "npm run typecheck --workspace=frontend"
   }
 }
