@@ -1,8 +1,17 @@
 import os
 from flask import Flask
 from app.config import config_by_name, Config
-from app.extensions import cors, db, migrate
+from app.extensions import cors, db, migrate, jwt
+from app.utils.errors import APIError, api_error
 from app.routes.health import health_bp
+from app.routes.auth import auth_bp
+from app.routes.projects import projects_bp
+from app.routes.issues import issues_bp
+from app.routes.labels import labels_bp
+from app.routes.comments import comments_bp
+from app.routes.activities import activities_bp
+from app.routes.analytics import analytics_bp
+import app.models  # noqa: F401
 
 
 def create_app(config_name=None):
@@ -30,8 +39,34 @@ def create_app(config_name=None):
     cors.init_app(app, resources={r"/api/*": {"origins": cors_origins}})
     db.init_app(app)
     migrate.init_app(app, db)
+    jwt.init_app(app)
+
+    # JWT Error handlers returning consistent API error schema
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        return api_error("TOKEN_EXPIRED", "The access token has expired", 401)
+
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error_string):
+        return api_error("INVALID_TOKEN", f"Invalid access token: {error_string}", 401)
+
+    @jwt.unauthorized_loader
+    def missing_token_callback(error_string):
+        return api_error("UNAUTHORIZED", f"Authorization header with Bearer token is required: {error_string}", 401)
+
+    # Global API error handler
+    @app.errorhandler(APIError)
+    def handle_api_error(err):
+        return err.to_response()
 
     # Register blueprints
     app.register_blueprint(health_bp, url_prefix="/api")
+    app.register_blueprint(auth_bp, url_prefix="/api")
+    app.register_blueprint(projects_bp, url_prefix="/api")
+    app.register_blueprint(issues_bp, url_prefix="/api")
+    app.register_blueprint(labels_bp, url_prefix="/api")
+    app.register_blueprint(comments_bp, url_prefix="/api")
+    app.register_blueprint(activities_bp, url_prefix="/api")
+    app.register_blueprint(analytics_bp, url_prefix="/api")
 
     return app

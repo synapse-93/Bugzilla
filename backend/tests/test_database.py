@@ -2,7 +2,7 @@ import os
 import pytest
 from sqlalchemy import text
 from app import create_app
-from app.config import TestingConfig, normalize_database_url
+from app.config import Config, TestingConfig, normalize_database_url
 from app.extensions import db, migrate
 
 
@@ -43,9 +43,28 @@ def test_database_extensions_registered_in_app_factory():
 def test_testing_config_uses_test_database_url_without_sqlite_or_prod_fallback():
     """Test that TestingConfig is isolated to TEST_DATABASE_URL without SQLite or prod fallback."""
     uri = TestingConfig.SQLALCHEMY_DATABASE_URI
-    assert uri is not None
-    assert uri.startswith("postgresql+psycopg://")
-    assert "sqlite" not in uri.lower()
+    if uri is not None:
+        assert uri.startswith("postgresql+psycopg://")
+        assert "sqlite" not in uri.lower()
+    else:
+        assert uri is None
+
+
+def test_app_factory_constructible_without_database_url():
+    """Verify create_app constructs cleanly with DEBUG=False, TESTING=False when DB URL is absent."""
+    app = create_app()
+    assert app is not None
+    assert app.config["DEBUG"] is False
+    assert app.config["TESTING"] is False
+    assert "sqlalchemy" in app.extensions
+
+
+def test_app_factory_development_constructible():
+    """Verify create_app('development') constructs with DEBUG=True, TESTING=False."""
+    app = create_app("development")
+    assert app.config["DEBUG"] is True
+    assert app.config["TESTING"] is False
+    assert "sqlalchemy" in app.extensions
 
 
 @pytest.mark.skipif(

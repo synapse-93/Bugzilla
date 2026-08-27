@@ -1,3 +1,4 @@
+from datetime import timedelta
 import os
 
 
@@ -31,15 +32,19 @@ class Config:
     # Database configuration
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = normalize_database_url(
-        os.environ.get("DATABASE_URL", "postgresql+psycopg://localhost:5432/bugzilla")
+        os.environ.get("DATABASE_URL")
     )
+
+    # JWT Authentication configuration
+    JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "dev-jwt-secret-key-change-in-production")
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)
 
 
 class DevelopmentConfig(Config):
     """Development configuration."""
     DEBUG = True
     SQLALCHEMY_DATABASE_URI = normalize_database_url(
-        os.environ.get("DATABASE_URL", "postgresql+psycopg://localhost:5432/bugzilla")
+        os.environ.get("DATABASE_URL")
     )
 
 
@@ -47,7 +52,7 @@ class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
     SQLALCHEMY_DATABASE_URI = normalize_database_url(
-        os.environ.get("DATABASE_URL", "postgresql+psycopg://localhost:5432/bugzilla")
+        os.environ.get("DATABASE_URL")
     )
 
 
@@ -57,8 +62,9 @@ class TestingConfig(Config):
     DEBUG = True
     CORS_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000"]
     SQLALCHEMY_DATABASE_URI = normalize_database_url(
-        os.environ.get("TEST_DATABASE_URL", "postgresql+psycopg://localhost:5432/bugzilla_test")
+        os.environ.get("TEST_DATABASE_URL")
     )
+    JWT_SECRET_KEY = "test-isolated-jwt-secret-key"
 
 
 config_by_name = {
