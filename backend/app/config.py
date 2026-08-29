@@ -1,6 +1,12 @@
 from datetime import timedelta
 import os
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 
 def normalize_database_url(url: str | None) -> str | None:
     """Normalize database URL for SQLAlchemy with psycopg 3 driver."""
@@ -63,15 +69,19 @@ class DevelopmentConfigMeta(type):
     def CORS_ORIGINS(cls):
         if "CORS_ORIGINS" in cls.__dict__:
             return cls.__dict__["CORS_ORIGINS"]
-        raw = os.environ.get("CORS_ORIGINS", "").strip()
-        if raw:
-            return [origin.strip() for origin in raw.split(",") if origin.strip()]
-        return [
+        origins = [
             "http://localhost:5173",
             "http://localhost:3000",
             "http://127.0.0.1:5173",
             "http://127.0.0.1:3000",
         ]
+        raw = os.environ.get("CORS_ORIGINS", "").strip()
+        if raw:
+            for origin in raw.split(","):
+                clean = origin.strip()
+                if clean and clean not in origins:
+                    origins.append(clean)
+        return origins
 
 
 class DevelopmentConfig(Config, metaclass=DevelopmentConfigMeta):

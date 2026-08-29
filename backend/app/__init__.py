@@ -1,5 +1,12 @@
 import os
 from flask import Flask
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from app.config import config_by_name, Config
 from app.extensions import cors, db, migrate, jwt
 from app.utils.errors import APIError, api_error

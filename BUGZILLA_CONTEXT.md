@@ -1313,7 +1313,7 @@ README.md
 
 #### Backend (Runtime - requirements.txt)
 - `Flask==3.1.3`
-- `Flask-CORS==4.0.2`
+- `Flask-CORS==6.0.5`
 - `gunicorn==23.0.0`
 - `Flask-SQLAlchemy==3.1.1`
 - `SQLAlchemy==2.0.52`
