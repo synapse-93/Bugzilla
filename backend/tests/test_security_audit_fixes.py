@@ -447,3 +447,237 @@ def test_comment_edit_activity_audit(app_with_db, seed_data):
         assert update_act.old_value == "Original comment content"
         assert update_act.new_value == "Updated comment content"
         assert update_act.get_metadata() == {"comment_id": comment_id}
+
+
+# ==========================================
+# 9. CROSS-PROJECT COMMENT DELETION PROTECTION
+# ==========================================
+
+def test_cross_project_comment_deletion_blocked(app_with_db, seed_data):
+    """Hierarchical scoping blocks cross-project comment deletion when using foreign project ID."""
+    client = app_with_db.test_client()
+    headers_u1 = auth_headers(app_with_db, seed_data["user1_id"])
+    headers_u3 = auth_headers(app_with_db, seed_data["user3_id"])
+
+    # 1. User3 (Admin of Project 2) creates an issue in Project 2
+    res = client.post(
+        f"/api/projects/{seed_data['proj2_id']}/issues",
+        headers=headers_u3,
+        json={"title": "Project 2 Issue", "issue_type": "TASK"},
+    )
+    assert res.status_code == 201
+    issue2_id = res.get_json()["issue"]["id"]
+
+    # 2. User3 creates a comment on issue2 in Project 2
+    res = client.post(
+        f"/api/projects/{seed_data['proj2_id']}/issues/{issue2_id}/comments",
+        headers=headers_u3,
+        json={"body": "Sensitive Project 2 Comment"},
+    )
+    assert res.status_code == 201
+    comment_p2_id = res.get_json()["comment"]["id"]
+
+    # 3. User1 (Admin of Project 1) attempts to delete Project 2's comment by passing Project 1 ID
+    # URL: /api/projects/{proj1_id}/issues/{issue2_id}/comments/{comment_p2_id}
+    res = client.delete(
+        f"/api/projects/{seed_data['proj1_id']}/issues/{issue2_id}/comments/{comment_p2_id}",
+        headers=headers_u1,
+    )
+    assert res.status_code == 404
+    assert res.get_json()["error"]["code"] == "NOT_FOUND"
+
+    # 4. Verify comment still exists in DB
+    with app_with_db.app_context():
+        comment = db.session.get(Comment, comment_p2_id)
+        assert comment is not None
+        assert comment.body == "Sensitive Project 2 Comment"
+
+
+# ==========================================
+# 10. COMMENT DELETION PERMISSIONS
+# ==========================================
+
+def test_comment_deletion_author_and_admin(app_with_db, seed_data):
+    """Author and Project Admin can delete comments; other members cannot."""
+    client = app_with_db.test_client()
+    headers_u1 = auth_headers(app_with_db, seed_data["user1_id"])  # Admin in Proj1
+    headers_u2 = auth_headers(app_with_db, seed_data["user2_id"])  # Developer in Proj1
+    comments_url = f"/api/projects/{seed_data['proj1_id']}/issues/{seed_data['issue1_id']}/comments"
+
+    # User2 posts a comment
+    res = client.post(comments_url, headers=headers_u2, json={"body": "User2 comment"})
+    assert res.status_code == 201
+    c2_id = res.get_json()["comment"]["id"]
+
+    # User1 posts a comment
+    res = client.post(comments_url, headers=headers_u1, json={"body": "User1 comment"})
+    assert res.status_code == 201
+    c1_id = res.get_json()["comment"]["id"]
+
+    # User2 cannot delete User1's comment (not author, not admin) -> 403
+    res = client.delete(f"{comments_url}/{c1_id}", headers=headers_u2)
+    assert res.status_code == 403
+
+    # User2 can delete own comment (is author) -> 200
+    res = client.delete(f"{comments_url}/{c2_id}", headers=headers_u2)
+    assert res.status_code == 200
+
+    # User1 can delete any comment in Project 1 (is project Admin) -> 200
+    res = client.post(comments_url, headers=headers_u2, json={"body": "Another User2 comment"})
+    c3_id = res.get_json()["comment"]["id"]
+    res = client.delete(f"{comments_url}/{c3_id}", headers=headers_u1)
+    assert res.status_code == 200
+
+
+# ==========================================
+# 11. ADMIN INVARIANT PROTECTION
+# ==========================================
+
+def test_admin_invariant_demote_and_remove(app_with_db, seed_data):
+    """Cannot demote or remove the only ADMIN in a project."""
+    client = app_with_db.test_client()
+    headers_u1 = auth_headers(app_with_db, seed_data["user1_id"])
+
+    # User1 is the only ADMIN in Project 1
+    # 1. Attempt to demote User1 to DEVELOPER -> 400 Bad Request
+    res = client.patch(
+        f"/api/projects/{seed_data['proj1_id']}/members/{seed_data['user1_id']}",
+        headers=headers_u1,
+        json={"role": "DEVELOPER"},
+    )
+    assert res.status_code == 400
+    assert "admin" in res.get_json()["error"]["message"].lower()
+
+    # 2. Attempt to remove User1 -> 400 Bad Request
+    res = client.delete(
+        f"/api/projects/{seed_data['proj1_id']}/members/{seed_data['user1_id']}",
+        headers=headers_u1,
+    )
+    assert res.status_code == 400
+    assert "admin" in res.get_json()["error"]["message"].lower()
+
+    # 3. Promote User2 to ADMIN -> Now 2 admins exist
+    res = client.patch(
+        f"/api/projects/{seed_data['proj1_id']}/members/{seed_data['user2_id']}",
+        headers=headers_u1,
+        json={"role": "ADMIN"},
+    )
+    assert res.status_code == 200
+
+    # 4. Now User1 can be demoted since User2 is also ADMIN
+    res = client.patch(
+        f"/api/projects/{seed_data['proj1_id']}/members/{seed_data['user1_id']}",
+        headers=headers_u1,
+        json={"role": "DEVELOPER"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["member"]["role"] == "DEVELOPER"
+
+
+# ==========================================
+# 12. FULL ISSUE LIFECYCLE E2E INTEGRATION
+# ==========================================
+
+def test_full_issue_lifecycle_api(app_with_db, seed_data):
+    """Verify complete issue lifecycle through all allowed state transitions with activity tracking."""
+    client = app_with_db.test_client()
+    headers = auth_headers(app_with_db, seed_data["user1_id"])
+    proj_id = seed_data["proj1_id"]
+
+    # 1. Create issue
+    res = client.post(
+        f"/api/projects/{proj_id}/issues",
+        headers=headers,
+        json={
+            "title": "Lifecycle Issue",
+            "description": "Initial description",
+            "issue_type": "BUG",
+            "priority": "HIGH",
+            "severity": "HIGH",
+            "assignee_id": seed_data["user2_id"],
+            "label_ids": [seed_data["lbl_p1_id"]],
+        },
+    )
+    assert res.status_code == 201
+    issue_id = res.get_json()["issue"]["id"]
+    assert res.get_json()["issue"]["status"] == "OPEN"
+
+    # 2. Transition OPEN -> IN_PROGRESS
+    res = client.patch(
+        f"/api/projects/{proj_id}/issues/{issue_id}",
+        headers=headers,
+        json={"status": "IN_PROGRESS"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["issue"]["status"] == "IN_PROGRESS"
+
+    # 3. Transition IN_PROGRESS -> IN_REVIEW
+    res = client.patch(
+        f"/api/projects/{proj_id}/issues/{issue_id}",
+        headers=headers,
+        json={"status": "IN_REVIEW"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["issue"]["status"] == "IN_REVIEW"
+
+    # 4. Transition IN_REVIEW -> RESOLVED (resolution defaults to FIXED)
+    res = client.patch(
+        f"/api/projects/{proj_id}/issues/{issue_id}",
+        headers=headers,
+        json={"status": "RESOLVED"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["issue"]["status"] == "RESOLVED"
+    assert res.get_json()["issue"]["resolution"] == "FIXED"
+
+    # 5. Transition RESOLVED -> CLOSED
+    res = client.patch(
+        f"/api/projects/{proj_id}/issues/{issue_id}",
+        headers=headers,
+        json={"status": "CLOSED"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["issue"]["status"] == "CLOSED"
+
+    # 6. Transition CLOSED -> OPEN (reopen clears resolution)
+    res = client.patch(
+        f"/api/projects/{proj_id}/issues/{issue_id}",
+        headers=headers,
+        json={"status": "OPEN"},
+    )
+    assert res.status_code == 200
+    assert res.get_json()["issue"]["status"] == "OPEN"
+    assert res.get_json()["issue"]["resolution"] is None
+
+
+# ==========================================
+# 13. PROJECT ISOLATION AND RBAC REJECTION
+# ==========================================
+
+def test_non_member_access_forbidden(app_with_db, seed_data):
+    """Non-members cannot read or mutate project issues or project settings."""
+    client = app_with_db.test_client()
+    headers_u3 = auth_headers(app_with_db, seed_data["user3_id"])  # User 3 is NOT in Project 1
+    proj1_id = seed_data["proj1_id"]
+
+    # 1. Non-member cannot list issues in Project 1 -> 403
+    res = client.get(f"/api/projects/{proj1_id}/issues", headers=headers_u3)
+    assert res.status_code == 403
+
+    # 2. Non-member cannot get Project 1 details -> 403
+    res = client.get(f"/api/projects/{proj1_id}", headers=headers_u3)
+    assert res.status_code == 403
+
+    # 3. Non-member cannot create issue in Project 1 -> 403
+    res = client.post(
+        f"/api/projects/{proj1_id}/issues",
+        headers=headers_u3,
+        json={"title": "Unauthorized Issue", "issue_type": "TASK"},
+    )
+    assert res.status_code == 403
+
+    # 4. Non-member cannot list members in Project 1 -> 403
+    res = client.get(f"/api/projects/{proj1_id}/members", headers=headers_u3)
+    assert res.status_code == 403
+
+

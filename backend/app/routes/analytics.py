@@ -15,7 +15,7 @@ analytics_bp = Blueprint("analytics", __name__)
 @require_project_access()
 def get_analytics_summary(project_id: int):
     """Aggregate high-level metric counts for the project."""
-    project = Project.query.get(project_id)
+    project = db.session.get(Project, project_id)
     if not project:
         return api_error("NOT_FOUND", "Project not found", 404)
 

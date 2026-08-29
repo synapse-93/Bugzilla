@@ -17,18 +17,23 @@ const COLUMNS: { status: IssueStatus; title: string; color: string }[] = [
 ]
 
 export function KanbanBoard({ issues, onSelectIssue, onUpdateStatus }: KanbanBoardProps) {
-  const getNextStatus = (current: IssueStatus): IssueStatus | null => {
+  const getTransitions = (current: IssueStatus): { status: IssueStatus; label: string; isReopen?: boolean }[] => {
     switch (current) {
       case 'OPEN':
-        return 'IN_PROGRESS'
+        return [{ status: 'IN_PROGRESS', label: 'Start' }]
       case 'IN_PROGRESS':
-        return 'IN_REVIEW'
+        return [{ status: 'IN_REVIEW', label: 'Review' }]
       case 'IN_REVIEW':
-        return 'RESOLVED'
+        return [{ status: 'RESOLVED', label: 'Resolve' }]
       case 'RESOLVED':
-        return 'CLOSED'
+        return [
+          { status: 'CLOSED', label: 'Close' },
+          { status: 'OPEN', label: 'Reopen', isReopen: true },
+        ]
+      case 'CLOSED':
+        return [{ status: 'OPEN', label: 'Reopen', isReopen: true }]
       default:
-        return null
+        return []
     }
   }
 
@@ -66,7 +71,7 @@ export function KanbanBoard({ issues, onSelectIssue, onUpdateStatus }: KanbanBoa
                 <div className="kanban-empty">No issues</div>
               ) : (
                 colIssues.map((issue) => {
-                  const next = getNextStatus(issue.status)
+                  const transitions = getTransitions(issue.status)
                   return (
                     <div
                       key={issue.id}
@@ -116,18 +121,23 @@ export function KanbanBoard({ issues, onSelectIssue, onUpdateStatus }: KanbanBoa
                           )}
                         </div>
 
-                        {next && (
-                          <button
-                            className="btn-next-status"
-                            title={`Advance to ${next.replace('_', ' ')}`}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onUpdateStatus(issue, next)
-                            }}
-                          >
-                            <span>Move</span>
-                            <ChevronRight size={13} />
-                          </button>
+                        {transitions.length > 0 && (
+                          <div className="kanban-actions-group">
+                            {transitions.map((t) => (
+                              <button
+                                key={t.status}
+                                className={`btn-next-status ${t.isReopen ? 'btn-reopen' : ''}`}
+                                title={`Move to ${t.status.replace('_', ' ')}`}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onUpdateStatus(issue, t.status)
+                                }}
+                              >
+                                <span>{t.label}</span>
+                                {!t.isReopen && <ChevronRight size={12} />}
+                              </button>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>

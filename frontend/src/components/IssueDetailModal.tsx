@@ -16,6 +16,7 @@ import {
   X,
   Send,
   Trash2,
+  Edit3,
   Clock,
   MessageSquare,
   History,
@@ -24,6 +25,14 @@ import {
   CheckCircle2,
   User,
 } from 'lucide-react'
+
+const ALLOWED_STATUS_TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
+  OPEN: ['OPEN', 'IN_PROGRESS'],
+  IN_PROGRESS: ['IN_PROGRESS', 'IN_REVIEW', 'OPEN'],
+  IN_REVIEW: ['IN_REVIEW', 'RESOLVED', 'IN_PROGRESS'],
+  RESOLVED: ['RESOLVED', 'CLOSED', 'OPEN', 'IN_PROGRESS'],
+  CLOSED: ['CLOSED', 'OPEN'],
+}
 
 interface IssueDetailModalProps {
   issue: Issue
@@ -63,10 +72,13 @@ export function IssueDetailModal({
   const [comments, setComments] = useState<Comment[]>([])
   const [activities, setActivities] = useState<Activity[]>([])
   const [newCommentBody, setNewCommentBody] = useState('')
+  const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
+  const [editingCommentBody, setEditingCommentBody] = useState('')
   const [loadingComments, setLoadingComments] = useState(false)
   const [loadingActivities, setLoadingActivities] = useState(false)
   const [saving, setSaving] = useState(false)
   const [submittingComment, setSubmittingComment] = useState(false)
+  const [savingComment, setSavingComment] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -95,6 +107,15 @@ export function IssueDetailModal({
       console.error('Failed to load activities:', err)
     } finally {
       setLoadingActivities(false)
+    }
+  }
+
+  const handleStatusChange = (newStatus: IssueStatus) => {
+    setStatus(newStatus)
+    if (newStatus === 'RESOLVED' || newStatus === 'CLOSED') {
+      if (!resolution) setResolution('FIXED')
+    } else {
+      setResolution(undefined)
     }
   }
 
@@ -135,6 +156,32 @@ export function IssueDetailModal({
       setError(err.message || 'Failed to post comment')
     } finally {
       setSubmittingComment(false)
+    }
+  }
+
+  const handleStartEditComment = (comment: Comment) => {
+    setEditingCommentId(comment.id)
+    setEditingCommentBody(comment.body)
+  }
+
+  const handleCancelEditComment = () => {
+    setEditingCommentId(null)
+    setEditingCommentBody('')
+  }
+
+  const handleSaveEditComment = async (commentId: number) => {
+    if (!editingCommentBody.trim()) return
+    setSavingComment(true)
+    try {
+      const res = await api.comments.update(projectId, issue.id, commentId, editingCommentBody.trim())
+      setComments(comments.map((c) => (c.id === commentId ? res.comment : c)))
+      setEditingCommentId(null)
+      setEditingCommentBody('')
+      loadActivities()
+    } catch (err: any) {
+      setError(err.message || 'Failed to update comment')
+    } finally {
+      setSavingComment(false)
     }
   }
 
@@ -253,17 +300,57 @@ export function IssueDetailModal({
                                 {new Date(comment.created_at).toLocaleString()}
                               </span>
                             </div>
-                            {(user?.id === comment.author_id) && (
-                              <button
-                                className="btn-icon-xs text-muted hover-danger"
-                                onClick={() => handleDeleteComment(comment.id)}
-                                title="Delete Comment"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                            {user?.id === comment.author_id && (
+                              <div className="comment-actions-group">
+                                {editingCommentId !== comment.id && (
+                                  <button
+                                    className="btn-icon-xs text-muted hover-primary"
+                                    onClick={() => handleStartEditComment(comment)}
+                                    title="Edit Comment"
+                                  >
+                                    <Edit3 size={13} />
+                                  </button>
+                                )}
+                                <button
+                                  className="btn-icon-xs text-muted hover-danger"
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                  title="Delete Comment"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
                             )}
                           </div>
-                          <div className="comment-body">{comment.body}</div>
+                          {editingCommentId === comment.id ? (
+                            <div className="comment-edit-box">
+                              <textarea
+                                rows={2}
+                                value={editingCommentBody}
+                                onChange={(e) => setEditingCommentBody(e.target.value)}
+                                className="comment-edit-input"
+                              />
+                              <div className="flex-row gap-2 mt-2">
+                                <button
+                                  type="button"
+                                  className="btn-primary btn-xs"
+                                  disabled={savingComment || !editingCommentBody.trim()}
+                                  onClick={() => handleSaveEditComment(comment.id)}
+                                >
+                                  {savingComment ? 'Saving...' : 'Save'}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="btn-secondary btn-xs"
+                                  disabled={savingComment}
+                                  onClick={handleCancelEditComment}
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="comment-body">{comment.body}</div>
+                          )}
                         </div>
                       ))
                     )}
@@ -327,13 +414,13 @@ export function IssueDetailModal({
               <label>Status</label>
               <select
                 value={status}
-                onChange={(e) => setStatus(e.target.value as IssueStatus)}
+                onChange={(e) => handleStatusChange(e.target.value as IssueStatus)}
               >
-                <option value="OPEN">Open</option>
-                <option value="IN_PROGRESS">In Progress</option>
-                <option value="IN_REVIEW">In Review</option>
-                <option value="RESOLVED">Resolved</option>
-                <option value="CLOSED">Closed</option>
+                {(ALLOWED_STATUS_TRANSITIONS[issue.status] || ['OPEN', 'IN_PROGRESS', 'IN_REVIEW', 'RESOLVED', 'CLOSED']).map((s) => (
+                  <option key={s} value={s}>
+                    {s === 'OPEN' ? 'Open' : s === 'IN_PROGRESS' ? 'In Progress' : s === 'IN_REVIEW' ? 'In Review' : s === 'RESOLVED' ? 'Resolved' : 'Closed'}
+                  </option>
+                ))}
               </select>
             </div>
 

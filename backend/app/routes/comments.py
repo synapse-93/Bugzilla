@@ -113,6 +113,10 @@ def delete_comment(project_id: int, issue_id: int, comment_id: int):
     if not user:
         return api_error("UNAUTHORIZED", "Invalid credentials", 401)
 
+    issue = Issue.query.filter_by(id=issue_id, project_id=project_id).first()
+    if not issue:
+        return api_error("NOT_FOUND", "Issue not found in this project", 404)
+
     comment = Comment.query.filter_by(id=comment_id, issue_id=issue_id).first()
     if not comment:
         return api_error("NOT_FOUND", "Comment not found", 404)

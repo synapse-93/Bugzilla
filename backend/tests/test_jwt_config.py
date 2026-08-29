@@ -11,6 +11,7 @@ def test_production_config_with_explicit_secret_succeeds(monkeypatch):
     """Verify ProductionConfig successfully loads when JWT_SECRET_KEY is provided."""
     test_secret = "test-only-jwt-secret-for-pytest"
     monkeypatch.setenv("JWT_SECRET_KEY", test_secret)
+    monkeypatch.setenv("DATABASE_URL", "postgresql://produser:prodpass@localhost:5432/proddb")
 
     # Class-level access
     assert ProductionConfig.JWT_SECRET_KEY == test_secret

@@ -26,7 +26,7 @@ Managed production database
 
 `CORS_ORIGINS` — comma-separated allowed frontend origins.
 
-`JWT_SECRET` — production authentication secret.
+`JWT_SECRET_KEY` — production authentication secret.
 
 ## Pre-deployment checks
 

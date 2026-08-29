@@ -107,7 +107,7 @@ def get_project(project_id: int):
     if not user:
         return api_error("UNAUTHORIZED", "Invalid credentials", 401)
 
-    project = Project.query.get(project_id)
+    project = db.session.get(Project, project_id)
     if not project:
         return api_error("NOT_FOUND", "Project not found", 404)
 
@@ -128,7 +128,7 @@ def get_project(project_id: int):
 @require_project_access(allowed_roles=["ADMIN"])
 def update_project(project_id: int):
     """Update project details (ADMIN only)."""
-    project = Project.query.get(project_id)
+    project = db.session.get(Project, project_id)
     if not project:
         return api_error("NOT_FOUND", "Project not found", 404)
 
@@ -151,7 +151,7 @@ def update_project(project_id: int):
 @require_project_access(allowed_roles=["ADMIN"])
 def delete_project(project_id: int):
     """Delete project and all associated resources (ADMIN only)."""
-    project = Project.query.get(project_id)
+    project = db.session.get(Project, project_id)
     if not project:
         return api_error("NOT_FOUND", "Project not found", 404)
 
@@ -193,7 +193,7 @@ def add_member(project_id: int):
 
     target_user = None
     if user_id:
-        target_user = User.query.get(user_id)
+        target_user = db.session.get(User, user_id)
     elif identifier:
         target_user = User.query.filter(
             (User.email == identifier.lower()) | (User.username == identifier)
