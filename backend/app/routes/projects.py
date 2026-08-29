@@ -71,12 +71,20 @@ def create_project():
     if details:
         return api_error("VALIDATION_ERROR", "Invalid project input", 400, details)
 
-    if Project.query.filter_by(key=key).first():
-        return api_error("CONFLICT", f"Project key '{key}' already exists", 409, {"key": "Key already taken"})
+    clean_display_key = key
+    canonical_key = key
+
+    # If canonical key already exists, generate a server-side unique suffix namespace (e.g. TEST-6E)
+    if Project.query.filter_by(key=canonical_key).first():
+        import secrets
+        while Project.query.filter_by(key=canonical_key).first():
+            suffix = secrets.token_hex(1).upper()
+            canonical_key = f"{clean_display_key}-{suffix}"[:20]
 
     project = Project(
         name=name,
-        key=key,
+        key=canonical_key,
+        display_key=clean_display_key,
         description=description if description else None,
         created_by=user.id,
     )

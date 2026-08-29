@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Milestone, Issue } from '../types'
+import { api } from '../api/client'
 import { Target, Plus, Calendar, CheckCircle, Clock, Trash2, X } from 'lucide-react'
 import { formatDate } from '../utils/helpers'
 import { toast } from 'sonner'
@@ -9,7 +10,7 @@ interface MilestonesViewProps {
   milestones: Milestone[]
   issues: Issue[]
   onAddMilestone: (milestone: Milestone) => void
-  onDeleteMilestone: (id: string) => void
+  onDeleteMilestone: (id: number | string) => void
 }
 
 export function MilestonesView({
@@ -23,27 +24,39 @@ export function MilestonesView({
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [dueDate, setDueDate] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleCreate = (e: React.FormEvent) => {
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return
 
-    const newMilestone: Milestone = {
-      id: Math.random().toString(36).substring(2, 9),
-      project_id: projectId,
-      name: name.trim(),
-      description: description.trim() || undefined,
-      due_date: dueDate || undefined,
-      status: 'OPEN',
-      created_at: new Date().toISOString(),
+    setLoading(true)
+    try {
+      const res = await api.milestones.create(projectId, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        due_date: dueDate || undefined,
+      })
+      onAddMilestone(res.milestone)
+      setName('')
+      setDescription('')
+      setDueDate('')
+      setIsCreateModalOpen(false)
+      toast.success(`Milestone "${res.milestone.name}" created`)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create milestone')
+    } finally {
+      setLoading(false)
     }
+  }
 
-    onAddMilestone(newMilestone)
-    setName('')
-    setDescription('')
-    setDueDate('')
-    setIsCreateModalOpen(false)
-    toast.success(`Milestone "${newMilestone.name}" created`)
+  const handleDelete = async (id: number | string) => {
+    try {
+      await api.milestones.delete(projectId, id)
+      onDeleteMilestone(id)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to delete milestone')
+    }
   }
 
   return (
@@ -78,10 +91,12 @@ export function MilestonesView({
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
           {milestones.map((m) => {
-            const milestoneIssues = issues.filter((i) => i.milestone_id === m.id)
-            const total = milestoneIssues.length
-            const closed = milestoneIssues.filter((i) => i.status === 'RESOLVED' || i.status === 'CLOSED').length
-            const progress = total > 0 ? Math.round((closed / total) * 100) : 0
+            const milestoneIssues = issues.filter((i) => String(i.milestone_id) === String(m.id))
+            const total = milestoneIssues.length > 0 ? milestoneIssues.length : (m.total_issues || 0)
+            const closed = milestoneIssues.length > 0
+              ? milestoneIssues.filter((i) => i.status === 'RESOLVED' || i.status === 'CLOSED').length
+              : (m.closed_issues || 0)
+            const progress = total > 0 ? Math.round((closed / total) * 100) : (m.progress || 0)
 
             return (
               <div key={m.id} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
@@ -91,7 +106,7 @@ export function MilestonesView({
                       <Target size={16} className="text-blue-400" />
                       <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>{m.name}</span>
                     </div>
-                    <button className="btn-ghost btn-icon text-danger" onClick={() => onDeleteMilestone(m.id)}>
+                    <button className="btn-ghost btn-icon text-danger" onClick={() => handleDelete(m.id)}>
                       <Trash2 size={14} />
                     </button>
                   </div>
@@ -181,8 +196,8 @@ export function MilestonesView({
                 <button className="btn btn-secondary" type="button" onClick={() => setIsCreateModalOpen(false)}>
                   Cancel
                 </button>
-                <button className="btn btn-primary" type="submit" disabled={!name.trim()}>
-                  Create Milestone
+                <button className="btn btn-primary" type="submit" disabled={loading || !name.trim()}>
+                  {loading ? 'Creating...' : 'Create Milestone'}
                 </button>
               </div>
             </form>

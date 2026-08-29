@@ -195,7 +195,7 @@ export function ProjectOverview({
                       <div style={{ fontSize: '12px', color: 'var(--text-primary)' }}>
                         <span style={{ fontWeight: 600 }}>{actorName}</span>{' '}
                         <span style={{ color: 'var(--text-secondary)' }}>
-                          {act.action_type.toLowerCase().replace('_', ' ')}
+                          {(act.action || (act as any).action_type || 'updated').toLowerCase().replace('_', ' ')}
                         </span>
                         {act.new_value && <span style={{ color: 'var(--accent-primary)' }}> "{act.new_value}"</span>}
                       </div>

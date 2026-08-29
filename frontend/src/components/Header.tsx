@@ -63,6 +63,10 @@ export function Header({
               ? 'Milestones'
               : activeView === 'analytics'
               ? 'Analytics'
+              : activeView === 'collaborators'
+              ? 'Find Collaborators'
+              : activeView === 'profile'
+              ? 'My Profile'
               : 'Settings'}
           </span>
         </div>

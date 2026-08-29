@@ -93,10 +93,11 @@ export function IssueDetailModal({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deletingIssue, setDeletingIssue] = useState(false)
 
-  // Load comments and activities on mount
+  // Load comments, activities, and relationships on mount
   useEffect(() => {
     loadComments()
     loadActivities()
+    loadRelationships()
   }, [issue.id, projectId])
 
   const loadComments = async () => {
@@ -120,6 +121,15 @@ export function IssueDetailModal({
       console.error('Failed to load activities:', err)
     } finally {
       setLoadingActivities(false)
+    }
+  }
+
+  const loadRelationships = async () => {
+    try {
+      const res = await api.relationships.list(projectId, issue.id)
+      setRelationships(res.relationships)
+    } catch (err) {
+      console.error('Failed to load relationships:', err)
     }
   }
 
@@ -194,25 +204,35 @@ export function IssueDetailModal({
   }
 
   // Handle Add Relationship
-  const handleAddRelationship = (e: React.FormEvent) => {
+  const handleAddRelationship = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!relTargetIssueId) return
-    const target = allIssues.find((i) => String(i.id) === relTargetIssueId)
-    if (!target) return
 
-    const newRel: IssueRelationship = {
-      id: Math.random().toString(36).substring(2, 9),
-      source_issue_id: issue.id,
-      target_issue_id: target.id,
-      target_issue_identifier: target.identifier,
-      target_issue_title: target.title,
-      type: relType,
-      created_at: new Date().toISOString(),
+    try {
+      const res = await api.relationships.create(projectId, issue.id, {
+        target_issue_id: Number(relTargetIssueId),
+        relationship_type: relType,
+      })
+      setRelationships([...relationships, res.relationship])
+      setIsAddingRel(false)
+      setRelTargetIssueId('')
+      toast.success('Relationship linked')
+      loadActivities()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to link relationship')
     }
-    setRelationships([...relationships, newRel])
-    setIsAddingRel(false)
-    setRelTargetIssueId('')
-    toast.success('Relationship added')
+  }
+
+  // Handle Delete Relationship
+  const handleDeleteRelationship = async (relationshipId: number) => {
+    try {
+      await api.relationships.delete(projectId, issue.id, relationshipId)
+      setRelationships(relationships.filter((r) => r.id !== relationshipId))
+      toast.success('Relationship removed')
+      loadActivities()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to remove relationship')
+    }
   }
 
   // Handle Delete Issue
@@ -444,7 +464,7 @@ export function IssueDetailModal({
                             title="Edit Comment"
                             onClick={() => {
                               setEditingCommentId(c.id)
-                              setEditingCommentBody(c.body)
+                              setEditingCommentBody(c.content || (c as any).body || '')
                             }}
                           >
                             <Edit2 size={12} />
@@ -478,7 +498,7 @@ export function IssueDetailModal({
                         </div>
                       ) : (
                         <div style={{ fontSize: '13px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
-                          {c.body}
+                          {c.content || (c as any).body}
                         </div>
                       )}
                     </div>
@@ -521,7 +541,7 @@ export function IssueDetailModal({
                         <div style={{ fontSize: '12px', color: 'var(--text-primary)' }}>
                           <span style={{ fontWeight: 600 }}>{act.actor?.username || 'User'}</span>{' '}
                           <span style={{ color: 'var(--text-secondary)' }}>
-                            {act.action_type.toLowerCase().replace('_', ' ')}
+                            {(act.action || (act as any).action_type || 'updated').toLowerCase().replace('_', ' ')}
                           </span>
                           {act.old_value && act.new_value && (
                             <span style={{ color: 'var(--accent-primary)' }}>
@@ -603,15 +623,15 @@ export function IssueDetailModal({
                     <div key={rel.id} className="card" style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <span className="badge-pill" style={{ background: 'var(--bg-surface-hover)', marginRight: '8px' }}>
-                          {rel.type.replace('_', ' ')}
+                          {(rel.relationship_type || (rel as any).type || 'RELATED').replace('_', ' ')}
                         </span>
                         <span style={{ fontWeight: 500, fontSize: '13px' }}>
-                          {rel.target_issue_identifier}: {rel.target_issue_title}
+                          {rel.target_identifier || (rel as any).target_issue_identifier || `Issue #${rel.target_issue_id}`}: {rel.target_title || (rel as any).target_issue_title || ''}
                         </span>
                       </div>
                       <button
                         className="btn-ghost btn-icon text-danger"
-                        onClick={() => setRelationships(relationships.filter((r) => r.id !== rel.id))}
+                        onClick={() => handleDeleteRelationship(rel.id)}
                       >
                         <X size={14} />
                       </button>
@@ -641,7 +661,7 @@ export function IssueDetailModal({
                     <div key={att.id} className="card" style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <Paperclip size={14} className="text-muted" />
-                        <span style={{ fontSize: '13px', fontWeight: 500 }}>{att.filename}</span>
+                        <span style={{ fontSize: '13px', fontWeight: 500 }}>{att.name || (att as any).filename}</span>
                       </div>
                       <button className="btn-ghost btn-icon text-danger" onClick={() => setAttachments(attachments.filter((a) => a.id !== att.id))}>
                         <Trash2 size={13} />

@@ -1,49 +1,60 @@
-import { Project, Issue, Label, Comment, Activity, AnalyticsSummary, ProjectMember, User } from '../types'
+import {
+  User,
+  PublicProfile,
+  Project,
+  ProjectMember,
+  Invitation,
+  Notification,
+  Issue,
+  Label,
+  Comment,
+  Activity,
+  Milestone,
+  IssueRelationship,
+  ProjectRole,
+} from '../types'
 
-export class ApiError extends Error {
-  code: string
-  status: number
-  details: Record<string, any>
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
-  constructor(code: string, message: string, status: number, details = {}) {
-    super(message)
-    this.code = code
-    this.status = status
-    this.details = details
-  }
+interface RequestOptions extends RequestInit {
+  params?: Record<string, string | number | boolean | undefined>
 }
 
-export function getApiBaseUrl(): string {
-  const rawUrl = (import.meta.env.VITE_API_URL || '').trim()
-  if (!rawUrl) {
-    if (import.meta.env.PROD) {
-      throw new ApiError(
-        'CONFIG_ERROR',
-        'VITE_API_URL environment variable is required in production builds. Please set VITE_API_URL in your Vercel project environment variables (e.g. https://your-backend-api.onrender.com).',
-        500
-      )
-    }
-    return '/api'
-  }
-  return rawUrl.replace(/\/+$/, '') + '/api'
-}
-
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const baseUrl = getApiBaseUrl()
+async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const token = localStorage.getItem('bugzilla_auth_token')
-  const headers = new Headers(options.headers || {})
+  const { params, headers, ...customConfig } = options
 
-  if (!headers.has('Content-Type') && !(options.body instanceof FormData)) {
-    headers.set('Content-Type', 'application/json')
+  let url = `${API_BASE_URL}${endpoint}`
+  if (params) {
+    const searchParams = new URLSearchParams()
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') {
+        searchParams.append(key, String(value))
+      }
+    })
+    const queryString = searchParams.toString()
+    if (queryString) {
+      url += (url.includes('?') ? '&' : '?') + queryString
+    }
+  }
+
+  const defaultHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
   }
 
   if (token) {
-    headers.set('Authorization', `Bearer ${token}`)
+    defaultHeaders['Authorization'] = `Bearer ${token}`
   }
 
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
-  const url = `${baseUrl}${cleanEndpoint}`
-  const response = await fetch(url, { ...options, headers })
+  const config: RequestInit = {
+    ...customConfig,
+    headers: {
+      ...defaultHeaders,
+      ...headers,
+    },
+  }
+
+  const response = await fetch(url, config)
 
   if (response.status === 204) {
     return {} as T
@@ -52,115 +63,159 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
-    const err = data.error || {}
-    throw new ApiError(
-      err.code || 'REQUEST_FAILED',
-      err.message || response.statusText || 'An unexpected error occurred',
-      response.status,
-      err.details || {}
-    )
+    const errorMsg = data?.error?.message || data?.message || 'An unexpected error occurred'
+    const error = new Error(errorMsg) as Error & { code?: string; details?: any; status: number }
+    error.code = data?.error?.code
+    error.details = data?.error?.details
+    error.status = response.status
+    throw error
   }
 
   return data as T
 }
 
 export const api = {
-  health: {
-    check: () => request<{ status: string }>('/health'),
-    checkDb: () => request<{ status: string; database: string }>('/health/db'),
-  },
-
   auth: {
-    register: (data: { username: string; email: string; password: string }) =>
+    register: (body: { username: string; email: string; password: string }) =>
       request<{ user: User; access_token: string }>('/auth/register', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    login: (body: { email?: string; username?: string; password: string }) =>
+      request<{ user: User; access_token: string }>('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    guest: (body: { username: string; password: string }) =>
+      request<{ user: User; access_token: string }>('/auth/guest', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    forgotPassword: (email: string) =>
+      request<{ message: string }>('/auth/forgot-password', {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }),
+    resetPassword: (token: string, password: string) =>
+      request<{ message: string }>('/auth/reset-password', {
+        method: 'POST',
+        body: JSON.stringify({ token, password }),
+      }),
+    verifyEmail: (token: string) =>
+      request<{ message: string; user: User }>('/auth/verify-email', {
+        method: 'POST',
+        body: JSON.stringify({ token }),
+      }),
+    oauthGoogle: (data: { email: string; username?: string; name?: string; picture?: string }) =>
+      request<{ user: User; access_token: string }>('/auth/oauth/google', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    login: (data: { email?: string; username?: string; password: string }) =>
-      request<{ user: User; access_token: string }>('/auth/login', {
+    oauthGitHub: (data: { username: string; email?: string; avatar_url?: string }) =>
+      request<{ user: User; access_token: string }>('/auth/oauth/github', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     me: () => request<{ user: User }>('/auth/me'),
+    getProfile: () => request<{ user: User }>('/auth/profile'),
+    updateProfile: (data: Partial<User>) =>
+      request<{ user: User }>('/auth/profile', {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      }),
+    getPublicProfile: (userId: number) =>
+      request<{ profile: PublicProfile }>(`/users/${userId}/public-profile`),
+    listCollaborators: (skill?: string) =>
+      request<{ collaborators: PublicProfile[] }>('/users/collaborators', {
+        params: { skill },
+      }),
+  },
+
+  invitations: {
+    invite: (projectId: number, body: { username: string; role: ProjectRole }) =>
+      request<{ invitation: Invitation }>(`/projects/${projectId}/invitations`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    myInvitations: () => request<{ invitations: Invitation[] }>('/invitations/my'),
+    accept: (invitationId: number) =>
+      request<{ status: string; project: Project }>(`/invitations/${invitationId}/accept`, {
+        method: 'POST',
+      }),
+    decline: (invitationId: number) =>
+      request<{ status: string }>(`/invitations/${invitationId}/decline`, {
+        method: 'POST',
+      }),
+  },
+
+  notifications: {
+    list: () => request<{ notifications: Notification[]; unread_count: number }>('/notifications'),
+    markRead: (id: number) =>
+      request<{ notification: Notification }>(`/notifications/${id}/read`, {
+        method: 'PATCH',
+      }),
+    markAllRead: () => request<{ status: string }>('/notifications/mark-all-read', { method: 'POST' }),
   },
 
   projects: {
     list: () => request<{ projects: Project[] }>('/projects'),
-    create: (data: { name: string; key: string; description?: string }) =>
+    get: (id: number) => request<{ project: Project }>(`/projects/${id}`),
+    create: (body: { name: string; key: string; description?: string }) =>
       request<{ project: Project }>('/projects', {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       }),
-    createWithFallbackKey: async (data: { name: string; key: string; description?: string }) => {
-      const cleanKey = data.key.trim().toUpperCase()
-      try {
-        const res = await request<{ project: Project }>('/projects', {
-          method: 'POST',
-          body: JSON.stringify({ ...data, key: cleanKey }),
-        })
-        return { ...res, project: { ...res.project, display_key: cleanKey } }
-      } catch (err: any) {
-        if (err.status === 409 || err.code === 'CONFLICT') {
-          // Key collision: generate internal unique key (e.g. TESTA9)
-          const randomSuffix = Math.random().toString(36).substring(2, 4).toUpperCase()
-          const internalKey = `${cleanKey.substring(0, 8)}${randomSuffix}`.substring(0, 10)
-          const retryRes = await request<{ project: Project }>('/projects', {
-            method: 'POST',
-            body: JSON.stringify({ ...data, key: internalKey }),
-          })
-          return { ...retryRes, project: { ...retryRes.project, display_key: cleanKey } }
-        }
-        throw err
-      }
+    createWithFallbackKey: async (body: { name: string; key: string; description?: string }) => {
+      return request<{ project: Project }>('/projects', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      })
     },
-    get: (id: number) => request<{ project: Project }>(`/projects/${id}`),
-    update: (id: number, data: { name?: string; description?: string }) =>
+    update: (id: number, body: { name?: string; description?: string }) =>
       request<{ project: Project }>(`/projects/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       }),
-    delete: (id: number) =>
-      request<{ status: string }>(`/projects/${id}`, {
-        method: 'DELETE',
-      }),
-    getMembers: (id: number) =>
-      request<{ members: ProjectMember[] }>(`/projects/${id}/members`),
-    addMember: (id: number, data: { email?: string; username?: string; role: string }) =>
-      request<{ member: ProjectMember }>(`/projects/${id}/members`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
-    updateMemberRole: (id: number, userId: number, role: string) =>
-      request<{ member: ProjectMember }>(`/projects/${id}/members/${userId}`, {
+    delete: (id: number) => request<{ status: string }>(`/projects/${id}`, { method: 'DELETE' }),
+    getMembers: (projectId: number) =>
+      request<{ members: ProjectMember[] }>(`/projects/${projectId}/members`),
+    updateMemberRole: (projectId: number, userId: number, role: ProjectRole) =>
+      request<{ member: ProjectMember }>(`/projects/${projectId}/members/${userId}`, {
         method: 'PATCH',
         body: JSON.stringify({ role }),
       }),
-    removeMember: (id: number, userId: number) =>
-      request<{ status: string }>(`/projects/${id}/members/${userId}`, {
+    removeMember: (projectId: number, userId: number) =>
+      request<{ status: string }>(`/projects/${projectId}/members/${userId}`, {
         method: 'DELETE',
       }),
   },
 
   issues: {
-    list: (projectId: number, params: Record<string, string | undefined> = {}) => {
-      const query = new URLSearchParams()
-      Object.entries(params).forEach(([k, v]) => {
-        if (v !== undefined && v !== '') query.append(k, v)
-      })
-      const qs = query.toString()
-      return request<{ issues: Issue[] }>(`/projects/${projectId}/issues${qs ? `?${qs}` : ''}`)
-    },
-    create: (projectId: number, data: Partial<Issue> & { label_ids?: number[] }) =>
-      request<{ issue: Issue }>(`/projects/${projectId}/issues`, {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
+    list: (projectId: number, params?: Record<string, string | number | boolean | undefined>) =>
+      request<{ issues: Issue[] }>(`/projects/${projectId}/issues`, { params }),
     get: (projectId: number, issueId: number) =>
       request<{ issue: Issue }>(`/projects/${projectId}/issues/${issueId}`),
-    update: (projectId: number, issueId: number, data: Partial<Issue> & { label_ids?: number[] }) =>
+    create: (
+      projectId: number,
+      body: {
+        title: string
+        description?: string
+        issue_type?: string
+        priority?: string
+        severity?: string
+        assignee_id?: number | null
+        milestone_id?: number | null
+        label_ids?: number[]
+      }
+    ) =>
+      request<{ issue: Issue }>(`/projects/${projectId}/issues`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (projectId: number, issueId: number, body: Partial<Issue> & { label_ids?: number[] }) =>
       request<{ issue: Issue }>(`/projects/${projectId}/issues/${issueId}`, {
         method: 'PATCH',
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
       }),
     delete: (projectId: number, issueId: number) =>
       request<{ status: string }>(`/projects/${projectId}/issues/${issueId}`, {
@@ -168,12 +223,54 @@ export const api = {
       }),
   },
 
+  milestones: {
+    list: (projectId: number) =>
+      request<{ milestones: Milestone[] }>(`/projects/${projectId}/milestones`),
+    create: (projectId: number, body: { name: string; description?: string; due_date?: string }) =>
+      request<{ milestone: Milestone }>(`/projects/${projectId}/milestones`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    update: (projectId: number, milestoneId: number | string, body: Partial<Milestone>) =>
+      request<{ milestone: Milestone }>(`/projects/${projectId}/milestones/${milestoneId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      }),
+    delete: (projectId: number, milestoneId: number | string) =>
+      request<{ status: string }>(`/projects/${projectId}/milestones/${milestoneId}`, {
+        method: 'DELETE',
+      }),
+  },
+
+  relationships: {
+    list: (projectId: number, issueId: number) =>
+      request<{ relationships: IssueRelationship[] }>(`/projects/${projectId}/issues/${issueId}/relationships`),
+    create: (
+      projectId: number,
+      issueId: number,
+      body: { target_issue_id: number; relationship_type: string }
+    ) =>
+      request<{ relationship: IssueRelationship }>(`/projects/${projectId}/issues/${issueId}/relationships`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      }),
+    delete: (projectId: number, issueId: number, relationshipId: number) =>
+      request<{ status: string }>(`/projects/${projectId}/issues/${issueId}/relationships/${relationshipId}`, {
+        method: 'DELETE',
+      }),
+  },
+
   labels: {
     list: (projectId: number) => request<{ labels: Label[] }>(`/projects/${projectId}/labels`),
-    create: (projectId: number, data: { name: string; color: string }) =>
+    create: (projectId: number, body: { name: string; color: string }) =>
       request<{ label: Label }>(`/projects/${projectId}/labels`, {
         method: 'POST',
-        body: JSON.stringify(data),
+        body: JSON.stringify(body),
+      }),
+    update: (projectId: number, labelId: number, body: { name?: string; color?: string }) =>
+      request<{ label: Label }>(`/projects/${projectId}/labels/${labelId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
       }),
     delete: (projectId: number, labelId: number) =>
       request<{ status: string }>(`/projects/${projectId}/labels/${labelId}`, {
@@ -184,20 +281,26 @@ export const api = {
   comments: {
     list: (projectId: number, issueId: number) =>
       request<{ comments: Comment[] }>(`/projects/${projectId}/issues/${issueId}/comments`),
-    create: (projectId: number, issueId: number, body: string) =>
+    create: (projectId: number, issueId: number, content: string) =>
       request<{ comment: Comment }>(`/projects/${projectId}/issues/${issueId}/comments`, {
         method: 'POST',
-        body: JSON.stringify({ body }),
+        body: JSON.stringify({ content }),
       }),
-    update: (projectId: number, issueId: number, commentId: number, body: string) =>
-      request<{ comment: Comment }>(`/projects/${projectId}/issues/${issueId}/comments/${commentId}`, {
-        method: 'PATCH',
-        body: JSON.stringify({ body }),
-      }),
+    update: (projectId: number, issueId: number, commentId: number, content: string) =>
+      request<{ comment: Comment }>(
+        `/projects/${projectId}/issues/${issueId}/comments/${commentId}`,
+        {
+          method: 'PATCH',
+          body: JSON.stringify({ content }),
+        }
+      ),
     delete: (projectId: number, issueId: number, commentId: number) =>
-      request<{ status: string }>(`/projects/${projectId}/issues/${issueId}/comments/${commentId}`, {
-        method: 'DELETE',
-      }),
+      request<{ status: string }>(
+        `/projects/${projectId}/issues/${issueId}/comments/${commentId}`,
+        {
+          method: 'DELETE',
+        }
+      ),
   },
 
   activities: {
@@ -208,11 +311,26 @@ export const api = {
   },
 
   analytics: {
-    getSummary: (projectId: number) =>
-      request<{ summary: AnalyticsSummary }>(`/projects/${projectId}/analytics/summary`),
-    getStatus: (projectId: number) =>
-      request<{ distribution: Record<string, number> }>(`/projects/${projectId}/analytics/status`),
-    getPriority: (projectId: number) =>
-      request<{ distribution: Record<string, number> }>(`/projects/${projectId}/analytics/priority`),
+    getOverview: (projectId: number) =>
+      request<{
+        total_issues: number
+        open_issues: number
+        resolved_issues: number
+        closed_issues: number
+        critical_issues: number
+      }>(`/projects/${projectId}/analytics/overview`),
+    getStatusDistribution: (projectId: number) =>
+      request<{ distribution: { status: string; count: number }[] }>(
+        `/projects/${projectId}/analytics/status-distribution`
+      ),
+    getPriorityDistribution: (projectId: number) =>
+      request<{ distribution: { priority: string; count: number }[] }>(
+        `/projects/${projectId}/analytics/priority-distribution`
+      ),
+  },
+
+  health: {
+    checkDb: () =>
+      request<{ status: string; database: string }>('/health/db'),
   },
 }

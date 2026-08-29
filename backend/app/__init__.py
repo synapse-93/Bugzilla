@@ -2,6 +2,7 @@ import os
 from flask import Flask
 
 try:
+    # pyrefly: ignore [missing-import]
     from dotenv import load_dotenv
     load_dotenv()
 except ImportError:
@@ -18,6 +19,10 @@ from app.routes.labels import labels_bp
 from app.routes.comments import comments_bp
 from app.routes.activities import activities_bp
 from app.routes.analytics import analytics_bp
+from app.routes.invitations import invitations_bp
+from app.routes.notifications import notifications_bp
+from app.routes.milestones import milestones_bp
+from app.routes.relationships import relationships_bp
 import app.models  # noqa: F401
 
 
@@ -82,5 +87,9 @@ def create_app(config_name=None):
     app.register_blueprint(comments_bp, url_prefix="/api")
     app.register_blueprint(activities_bp, url_prefix="/api")
     app.register_blueprint(analytics_bp, url_prefix="/api")
+    app.register_blueprint(invitations_bp, url_prefix="/api")
+    app.register_blueprint(notifications_bp, url_prefix="/api")
+    app.register_blueprint(milestones_bp, url_prefix="/api")
+    app.register_blueprint(relationships_bp, url_prefix="/api")
 
     return app

@@ -14,6 +14,9 @@ import {
   Target,
   Bug,
   LayoutDashboard,
+  Sparkles,
+  User,
+  Mail,
 } from 'lucide-react'
 import { getDisplayProjectKey } from '../utils/helpers'
 
@@ -22,11 +25,13 @@ interface SidebarProps {
   currentProject: Project | null
   onSelectProject: (proj: Project) => void
   onOpenCreateProject: () => void
-  activeView: 'overview' | 'issues' | 'board' | 'milestones' | 'analytics' | 'settings'
-  onChangeView: (view: 'overview' | 'issues' | 'board' | 'milestones' | 'analytics' | 'settings') => void
+  activeView: 'overview' | 'issues' | 'board' | 'milestones' | 'analytics' | 'collaborators' | 'profile' | 'settings'
+  onChangeView: (view: 'overview' | 'issues' | 'board' | 'milestones' | 'analytics' | 'collaborators' | 'profile' | 'settings') => void
   issueCount?: number
   memberCount?: number
   labelCount?: number
+  pendingInvitationsCount?: number
+  onOpenInvitations?: () => void
 }
 
 export function Sidebar({
@@ -39,6 +44,8 @@ export function Sidebar({
   issueCount = 0,
   memberCount = 0,
   labelCount = 0,
+  pendingInvitationsCount = 0,
+  onOpenInvitations,
 }: SidebarProps) {
   const { user, logout } = useAuth()
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
@@ -156,6 +163,37 @@ export function Sidebar({
           </div>
         </div>
 
+        {/* Collaboration & Discovery */}
+        <div className="nav-section">
+          <div className="nav-section-title">Collaboration</div>
+          <div
+            className={`nav-item ${activeView === 'collaborators' ? 'active' : ''}`}
+            onClick={() => onChangeView('collaborators')}
+          >
+            <div className="nav-item-left">
+              <Sparkles size={15} className="text-emerald-400" />
+              <span>Find Collaborators</span>
+            </div>
+          </div>
+
+          {onOpenInvitations && (
+            <div
+              className="nav-item"
+              onClick={onOpenInvitations}
+            >
+              <div className="nav-item-left">
+                <Mail size={15} className="text-blue-400" />
+                <span>Invitations</span>
+              </div>
+              {pendingInvitationsCount > 0 && (
+                <span className="nav-badge" style={{ background: 'var(--accent-primary)', color: '#fff' }}>
+                  {pendingInvitationsCount}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Project Section */}
         <div className="nav-section">
           <div className="nav-section-title">Project</div>
@@ -170,7 +208,7 @@ export function Sidebar({
           </div>
         </div>
 
-        {/* Management Section */}
+        {/* Management & Settings Section */}
         <div className="nav-section">
           <div className="nav-section-title">Management</div>
           <div
@@ -179,29 +217,18 @@ export function Sidebar({
           >
             <div className="nav-item-left">
               <Users size={15} />
-              <span>Team Members</span>
+              <span>Team & Settings</span>
             </div>
             <span className="nav-badge">{memberCount}</span>
           </div>
 
           <div
-            className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
-            onClick={() => onChangeView('settings')}
+            className={`nav-item ${activeView === 'profile' ? 'active' : ''}`}
+            onClick={() => onChangeView('profile')}
           >
             <div className="nav-item-left">
-              <Tag size={15} />
-              <span>Labels</span>
-            </div>
-            <span className="nav-badge">{labelCount}</span>
-          </div>
-
-          <div
-            className={`nav-item ${activeView === 'settings' ? 'active' : ''}`}
-            onClick={() => onChangeView('settings')}
-          >
-            <div className="nav-item-left">
-              <Settings size={15} />
-              <span>Settings</span>
+              <User size={15} />
+              <span>My Profile</span>
             </div>
           </div>
         </div>
@@ -209,16 +236,27 @@ export function Sidebar({
 
       {/* User Footer */}
       <div className="sidebar-footer">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
-          <div className="user-avatar">
-            {user?.username ? user.username.substring(0, 2) : 'U'}
-          </div>
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', cursor: 'pointer' }}
+          onClick={() => onChangeView('profile')}
+        >
+          {user?.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt={user.username}
+              style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div className="user-avatar">
+              {user?.username ? user.username.substring(0, 2) : 'U'}
+            </div>
+          )}
           <div style={{ overflow: 'hidden' }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user?.username || 'Guest'}
+              {user?.display_name || user?.username || 'Guest'}
             </div>
             <div style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {user?.email || ''}
+              {user?.email || `@${user?.username}`}
             </div>
           </div>
         </div>

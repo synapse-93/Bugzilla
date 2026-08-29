@@ -11,6 +11,9 @@ import { KanbanBoard } from './components/KanbanBoard'
 import { AnalyticsView } from './components/AnalyticsView'
 import { MilestonesView } from './components/MilestonesView'
 import { ProjectSettingsView } from './components/ProjectSettingsView'
+import { CollaboratorDiscoveryView } from './components/CollaboratorDiscoveryView'
+import { ProfileView } from './components/ProfileView'
+import { InvitationsModal } from './components/InvitationsModal'
 import { CreateIssueModal } from './components/CreateIssueModal'
 import { CreateProjectModal } from './components/CreateProjectModal'
 import { IssueDetailModal } from './components/IssueDetailModal'
@@ -38,7 +41,7 @@ function BugzillaApp() {
 
   // View state
   const [activeView, setActiveView] = useState<
-    'overview' | 'issues' | 'board' | 'milestones' | 'analytics' | 'settings'
+    'overview' | 'issues' | 'board' | 'milestones' | 'analytics' | 'collaborators' | 'profile' | 'settings'
   >('overview')
   const [filters, setFilters] = useState<Record<string, string | undefined>>({})
 
@@ -48,6 +51,8 @@ function BugzillaApp() {
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false)
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false)
+  const [isInvitationsOpen, setIsInvitationsOpen] = useState(false)
+  const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0)
 
   // Global Keyboard Shortcuts (Cmd+K and C)
   useEffect(() => {
@@ -68,35 +73,40 @@ function BugzillaApp() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentProject])
 
-  // Load Projects on Auth
+  // Load Projects & Pending Invitations on Auth
   useEffect(() => {
     if (!user) return
 
-    async function loadProjects() {
+    async function loadInitialData() {
       setLoadingProjects(true)
       try {
-        const res = await api.projects.list()
-        setProjects(res.projects)
-        if (res.projects.length > 0 && !currentProject) {
-          setCurrentProject(res.projects[0])
+        const [projRes, invRes] = await Promise.all([
+          api.projects.list(),
+          api.invitations.myInvitations().catch(() => ({ invitations: [] })),
+        ])
+        setProjects(projRes.projects)
+        setPendingInvitationsCount(invRes.invitations.length)
+        if (projRes.projects.length > 0 && !currentProject) {
+          setCurrentProject(projRes.projects[0])
         }
       } catch (err) {
-        console.error('Failed to load projects:', err)
+        console.error('Failed to load initial data:', err)
       } finally {
         setLoadingProjects(false)
       }
     }
 
-    loadProjects()
+    loadInitialData()
   }, [user])
 
-  // Load Issues, Labels, Members, Activities when Current Project changes
+  // Load Issues, Labels, Members, Activities, Milestones when Current Project changes
   useEffect(() => {
     if (!currentProject) {
       setIssues([])
       setLabels([])
       setMembers([])
       setActivities([])
+      setMilestones([])
       return
     }
 
@@ -106,16 +116,18 @@ function BugzillaApp() {
   const loadProjectData = async (projectId: number, activeFilters: Record<string, string | undefined>) => {
     setLoadingIssues(true)
     try {
-      const [issuesRes, labelsRes, membersRes, activitiesRes] = await Promise.all([
+      const [issuesRes, labelsRes, membersRes, activitiesRes, milestonesRes] = await Promise.all([
         api.issues.list(projectId, activeFilters),
         api.labels.list(projectId),
         api.projects.getMembers(projectId),
         api.activities.listProject(projectId).catch(() => ({ activities: [] })),
+        api.milestones.list(projectId).catch(() => ({ milestones: [] })),
       ])
       setIssues(issuesRes.issues)
       setLabels(labelsRes.labels)
       setMembers(membersRes.members)
       setActivities(activitiesRes.activities)
+      setMilestones(milestonesRes.milestones)
     } catch (err) {
       console.error('Failed to fetch project data:', err)
     } finally {
@@ -154,11 +166,20 @@ function BugzillaApp() {
     }
   }
 
+  const handleRefreshMilestones = async () => {
+    if (!currentProject) return
+    try {
+      const res = await api.milestones.list(currentProject.id)
+      setMilestones(res.milestones)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
   // Kanban Status Update with Optimistic UI & Revert
   const handleStatusUpdate = async (issue: Issue, newStatus: IssueStatus) => {
     if (!currentProject) return
     const prevStatus = issue.status
-    // Optimistic UI update
     setIssues((prev) => prev.map((i) => (i.id === issue.id ? { ...i, status: newStatus } : i)))
 
     try {
@@ -167,7 +188,6 @@ function BugzillaApp() {
       toast.success(`Issue ${issue.identifier} moved to ${newStatus.replace('_', ' ')}`)
       handleRefreshActivities()
     } catch (err: any) {
-      // Revert optimistic UI
       setIssues((prev) => prev.map((i) => (i.id === issue.id ? { ...i, status: prevStatus } : i)))
       toast.error(err.message || 'Failed to update issue status')
     }
@@ -225,8 +245,8 @@ function BugzillaApp() {
     setMilestones([...milestones, newMilestone])
   }
 
-  const handleDeleteMilestone = (milestoneId: string) => {
-    setMilestones(milestones.filter((m) => m.id !== milestoneId))
+  const handleDeleteMilestone = (milestoneId: number | string) => {
+    setMilestones(milestones.filter((m) => String(m.id) !== String(milestoneId)))
     toast.success('Milestone deleted')
   }
 
@@ -261,6 +281,8 @@ function BugzillaApp() {
         issueCount={issues.length}
         memberCount={members.length}
         labelCount={labels.length}
+        pendingInvitationsCount={pendingInvitationsCount}
+        onOpenInvitations={() => setIsInvitationsOpen(true)}
       />
 
       <main className="app-main">
@@ -274,7 +296,11 @@ function BugzillaApp() {
         />
 
         <div className="view-content">
-          {!currentProject ? (
+          {activeView === 'collaborators' ? (
+            <CollaboratorDiscoveryView currentProject={currentProject} projects={projects} />
+          ) : activeView === 'profile' ? (
+            <ProfileView />
+          ) : !currentProject ? (
             <div className="card empty-state py-12">
               <FolderPlus size={44} className="text-muted mb-3" />
               <div className="empty-state-title">No Project Selected</div>
@@ -372,6 +398,17 @@ function BugzillaApp() {
         activities={activities}
         issues={issues}
         onSelectIssue={(issue) => setSelectedIssue(issue)}
+        onOpenInvitations={() => setIsInvitationsOpen(true)}
+      />
+
+      <InvitationsModal
+        isOpen={isInvitationsOpen}
+        onClose={() => setIsInvitationsOpen(false)}
+        onAccepted={(proj) => {
+          setProjects((prev) => [...prev.filter((p) => p.id !== proj.id), proj])
+          setCurrentProject(proj)
+          setPendingInvitationsCount((prev) => Math.max(0, prev - 1))
+        }}
       />
 
       {isCreateProjectOpen && (

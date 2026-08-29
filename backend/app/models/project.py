@@ -8,7 +8,8 @@ class Project(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
-    key = db.Column(db.String(10), unique=True, nullable=False, index=True)
+    key = db.Column(db.String(20), unique=True, nullable=False, index=True)
+    display_key = db.Column(db.String(20), nullable=True)
     description = db.Column(db.Text, nullable=True)
     created_by = db.Column(
         db.Integer,
@@ -47,6 +48,18 @@ class Project(db.Model):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    milestones = db.relationship(
+        "Milestone",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    invitations = db.relationship(
+        "Invitation",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     def to_dict(self) -> dict:
         """Serialize project to dict."""
@@ -54,6 +67,7 @@ class Project(db.Model):
             "id": self.id,
             "name": self.name,
             "key": self.key,
+            "display_key": self.display_key or self.key.split("-")[0],
             "description": self.description,
             "created_by": self.created_by,
             "created_at": self.created_at.isoformat() if self.created_at else None,

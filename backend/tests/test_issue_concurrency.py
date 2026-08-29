@@ -38,6 +38,7 @@ def test_issue_number_concurrency_postgresql():
     project_key = f"CN{unique_suffix[:4].upper()}"
 
     with app.app_context():
+        db.drop_all()
         db.create_all()
 
         user = User(username=username, email=email)

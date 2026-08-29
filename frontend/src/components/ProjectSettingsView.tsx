@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Project, ProjectMember, Label, Milestone } from '../types'
+import { Project, ProjectMember, Label, Milestone, ProjectRole } from '../types'
 import { api } from '../api/client'
 import { Settings, Users, Tag, AlertTriangle, Plus, Trash2, Shield, X, Check, Target } from 'lucide-react'
 import { getDisplayProjectKey, formatDate } from '../utils/helpers'
@@ -79,31 +79,30 @@ export function ProjectSettingsView({
     }
   }
 
-  // Handle Add Member
+  // Handle Invite Member
   const handleAddMember = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!memberIdentifier.trim()) return
 
     setAddingMember(true)
     try {
-      const isEmail = memberIdentifier.includes('@')
-      await api.projects.addMember(project.id, {
-        [isEmail ? 'email' : 'username']: memberIdentifier.trim(),
+      await api.invitations.invite(project.id, {
+        username: memberIdentifier.trim(),
         role: memberRole,
       })
-      toast.success(`Member added as ${memberRole}`)
+      toast.success(`Invitation dispatched to ${memberIdentifier.trim()}!`)
       setMemberIdentifier('')
       setIsAddMemberOpen(false)
       onMembersUpdated()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to add member')
+      toast.error(err.message || 'Failed to send invitation')
     } finally {
       setAddingMember(false)
     }
   }
 
   // Handle Update Role
-  const handleUpdateRole = async (userId: number, newRole: string) => {
+  const handleUpdateRole = async (userId: number, newRole: ProjectRole) => {
     try {
       await api.projects.updateMemberRole(project.id, userId, newRole)
       toast.success('Member role updated')
@@ -325,7 +324,7 @@ export function ProjectSettingsView({
                     className="form-select"
                     style={{ width: '130px', padding: '4px 8px', fontSize: '12px' }}
                     value={m.role}
-                    onChange={(e) => handleUpdateRole(m.user_id, e.target.value)}
+                    onChange={(e) => handleUpdateRole(m.user_id, e.target.value as ProjectRole)}
                   >
                     <option value="ADMIN">Admin</option>
                     <option value="MAINTAINER">Maintainer</option>

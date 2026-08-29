@@ -48,6 +48,12 @@ class Issue(db.Model):
         nullable=True,
         index=True,
     )
+    milestone_id = db.Column(
+        db.Integer,
+        db.ForeignKey("milestones.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     resolution = db.Column(
         db.String(20),
         nullable=True,
@@ -77,6 +83,7 @@ class Issue(db.Model):
     project = db.relationship("Project", back_populates="issues")
     creator = db.relationship("User", foreign_keys=[creator_id], back_populates="created_issues")
     assignee = db.relationship("User", foreign_keys=[assignee_id], back_populates="assigned_issues")
+    milestone = db.relationship("Milestone", back_populates="issues")
     issue_labels = db.relationship(
         "IssueLabel",
         back_populates="issue",
@@ -97,10 +104,24 @@ class Issue(db.Model):
         passive_deletes=True,
         order_by="Activity.created_at.asc()",
     )
+    outgoing_relationships = db.relationship(
+        "IssueRelationship",
+        foreign_keys="IssueRelationship.source_issue_id",
+        back_populates="source_issue",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    incoming_relationships = db.relationship(
+        "IssueRelationship",
+        foreign_keys="IssueRelationship.target_issue_id",
+        back_populates="target_issue",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
 
     @property
     def identifier(self) -> str:
-        """Formatted human-readable identifier (e.g. BUG-142)."""
+        """Formatted human-readable identifier (e.g. TEST-6E-1)."""
         key = self.project.key if self.project else "ISSUE"
         return f"{key}-{self.issue_number}"
 
@@ -119,6 +140,8 @@ class Issue(db.Model):
             "severity": self.severity,
             "creator_id": self.creator_id,
             "assignee_id": self.assignee_id,
+            "milestone_id": self.milestone_id,
+            "milestone_name": self.milestone.name if self.milestone else None,
             "resolution": self.resolution,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
@@ -126,4 +149,5 @@ class Issue(db.Model):
             "creator": self.creator.to_dict(include_email=False) if self.creator else None,
             "assignee": self.assignee.to_dict(include_email=False) if self.assignee else None,
             "labels": [il.label.to_dict() for il in self.issue_labels if il.label],
+            "relationships": [rel.to_dict() for rel in self.outgoing_relationships],
         }
