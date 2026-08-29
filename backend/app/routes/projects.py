@@ -33,8 +33,6 @@ def list_projects():
 
     memberships = ProjectMember.query.filter_by(user_id=user.id).all()
     project_ids = [m.project_id for m in memberships]
-
-    # If user has no explicit memberships, allow viewing all public/created projects or return user's projects
     projects = Project.query.filter(Project.id.in_(project_ids)).order_by(Project.name.asc()).all() if project_ids else []
 
     result = []
@@ -85,11 +83,9 @@ def create_project():
     db.session.add(project)
     db.session.flush()
 
-    # Assign creator as ADMIN
     member = ProjectMember(project_id=project.id, user_id=user.id, role="ADMIN")
     db.session.add(member)
 
-    # Seed default project labels
     for dl in DEFAULT_LABELS:
         lbl = Label(project_id=project.id, name=dl["name"], color=dl["color"])
         db.session.add(lbl)
@@ -164,7 +160,6 @@ def delete_project(project_id: int):
     return jsonify({"status": "deleted", "message": f"Project {project.key} deleted"}), 200
 
 
-# Member Management
 @projects_bp.route("/projects/<int:project_id>/members", methods=["GET"])
 @jwt_required()
 @require_project_access()
@@ -179,6 +174,15 @@ def list_members(project_id: int):
 @require_project_access(allowed_roles=["ADMIN"])
 def add_member(project_id: int):
     """Add a member to a project (ADMIN only)."""
+    project = (
+        db.session.query(Project)
+        .filter_by(id=project_id)
+        .with_for_update()
+        .first()
+    )
+    if not project:
+        return api_error("NOT_FOUND", "Project not found", 404)
+
     data = request.get_json(silent=True) or {}
     user_id = data.get("user_id")
     identifier = data.get("email") or data.get("username")
@@ -214,6 +218,15 @@ def add_member(project_id: int):
 @require_project_access(allowed_roles=["ADMIN"])
 def update_member_role(project_id: int, user_id: int):
     """Update a member's role (ADMIN only)."""
+    project = (
+        db.session.query(Project)
+        .filter_by(id=project_id)
+        .with_for_update()
+        .first()
+    )
+    if not project:
+        return api_error("NOT_FOUND", "Project not found", 404)
+
     data = request.get_json(silent=True) or {}
     role = (data.get("role") or "").upper()
 
@@ -223,6 +236,11 @@ def update_member_role(project_id: int, user_id: int):
     member = ProjectMember.query.filter_by(project_id=project_id, user_id=user_id).first()
     if not member:
         return api_error("NOT_FOUND", "Project member not found", 404)
+
+    if member.role == "ADMIN" and role != "ADMIN":
+        admin_count = ProjectMember.query.filter_by(project_id=project_id, role="ADMIN").count()
+        if admin_count <= 1:
+            return api_error("BAD_REQUEST", "Cannot demote the only project admin", 400)
 
     member.role = role
     db.session.commit()
@@ -244,11 +262,19 @@ def remove_member(project_id: int, user_id: int):
     if caller_role != "ADMIN" and current_user.id != user_id:
         return api_error("FORBIDDEN", "Only project admins can remove other members", 403)
 
+    project = (
+        db.session.query(Project)
+        .filter_by(id=project_id)
+        .with_for_update()
+        .first()
+    )
+    if not project:
+        return api_error("NOT_FOUND", "Project not found", 404)
+
     member = ProjectMember.query.filter_by(project_id=project_id, user_id=user_id).first()
     if not member:
         return api_error("NOT_FOUND", "Project member not found", 404)
 
-    # Check if removing the last admin
     if member.role == "ADMIN":
         admin_count = ProjectMember.query.filter_by(project_id=project_id, role="ADMIN").count()
         if admin_count <= 1:
