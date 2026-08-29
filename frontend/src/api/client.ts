@@ -14,7 +14,16 @@ import {
   ProjectRole,
 } from '../types'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
+function getApiBaseUrl(): string {
+  const envUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
+  if (!envUrl) {
+    return 'http://localhost:5000/api'
+  }
+  // Ensure the base URL always targets /api (whether Vercel env variable has /api suffix or not)
+  return envUrl.endsWith('/api') ? envUrl : `${envUrl}/api`
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>
@@ -24,7 +33,8 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const token = localStorage.getItem('bugzilla_auth_token')
   const { params, headers, ...customConfig } = options
 
-  let url = `${API_BASE_URL}${endpoint}`
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+  let url = `${API_BASE_URL}${cleanEndpoint}`
   if (params) {
     const searchParams = new URLSearchParams()
     Object.entries(params).forEach(([key, value]) => {
