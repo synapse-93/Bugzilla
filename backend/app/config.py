@@ -27,7 +27,7 @@ class Config:
     # Configurable CORS origins for the frontend
     CORS_ORIGINS_RAW = os.environ.get(
         "CORS_ORIGINS",
-        "http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000",
+        "https://bugzilla-foundation.vercel.app,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000",
     )
     CORS_ORIGINS = [
         origin.strip()
@@ -70,6 +70,7 @@ class DevelopmentConfigMeta(type):
         if "CORS_ORIGINS" in cls.__dict__:
             return cls.__dict__["CORS_ORIGINS"]
         origins = [
+            "https://bugzilla-foundation.vercel.app",
             "http://localhost:5173",
             "http://localhost:3000",
             "http://127.0.0.1:5173",
@@ -130,7 +131,13 @@ class ProductionConfigMeta(type):
     def CORS_ORIGINS(cls):
         if "CORS_ORIGINS" in cls.__dict__:
             return cls.__dict__["CORS_ORIGINS"]
-        origins = ["https://bugzilla-foundation.vercel.app"]
+        origins = [
+            "https://bugzilla-foundation.vercel.app",
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+        ]
         raw = os.environ.get("CORS_ORIGINS", "").strip()
         if raw:
             for origin in raw.split(","):

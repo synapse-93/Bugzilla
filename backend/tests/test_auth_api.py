@@ -102,3 +102,40 @@ def test_auth_trailing_slash_no_redirect(monkeypatch):
     assert response.status_code == 200
     assert "Location" not in response.headers
 
+
+def test_production_cors_methods_and_headers(monkeypatch):
+    """Verify production CORS configuration explicitly allows required methods, headers, and no wildcard."""
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
+    app = create_app("production")
+    client = app.test_client()
+
+    prod_origin = "https://bugzilla-foundation.vercel.app"
+    response = client.options(
+        "/api/auth/login",
+        headers={
+            "Origin": prod_origin,
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type,Authorization",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("Access-Control-Allow-Origin") == prod_origin
+    assert response.headers.get("Access-Control-Allow-Origin") != "*"
+    assert response.headers.get("Access-Control-Allow-Credentials") == "true"
+    
+    allow_methods = response.headers.get("Access-Control-Allow-Methods", "")
+    for method in ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]:
+        assert method in allow_methods
+
+    # Unapproved origin test
+    unauth_resp = client.options(
+        "/api/auth/login",
+        headers={
+            "Origin": "https://malicious-site.com",
+            "Access-Control-Request-Method": "POST",
+        },
+    )
+    assert "Access-Control-Allow-Origin" not in unauth_resp.headers
+
+

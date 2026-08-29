@@ -1,5 +1,5 @@
 import os
-from flask import Flask
+from flask import Flask, request
 
 try:
     # pyrefly: ignore [missing-import]
@@ -49,13 +49,55 @@ def create_app(config_name=None):
 
     # Initialize extensions
     cors_origins = app.config.get("CORS_ORIGINS", [])
+    if isinstance(cors_origins, str):
+        cors_origins = [o.strip() for o in cors_origins.split(",") if o.strip()]
+
     cors.init_app(
         app,
-        resources={r"/api/*": {"origins": cors_origins}},
+        resources={
+            r"/api/*": {
+                "origins": cors_origins,
+                "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+                "allow_headers": [
+                    "Content-Type",
+                    "Authorization",
+                    "X-Requested-With",
+                    "Accept",
+                    "Origin",
+                    "Access-Control-Request-Method",
+                    "Access-Control-Request-Headers",
+                ],
+                "expose_headers": ["Content-Type", "Authorization"],
+                "supports_credentials": True,
+                "max_age": 86400,
+            }
+        },
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-Requested-With",
+            "Accept",
+            "Origin",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers",
+        ],
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+        max_age=86400,
     )
+
+    @app.after_request
+    def ensure_cors_headers(response):
+        origin = request.headers.get("Origin")
+        if origin and cors_origins and origin in cors_origins:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+            response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            response.headers["Access-Control-Allow-Headers"] = (
+                "Content-Type, Authorization, X-Requested-With, Accept, Origin, "
+                "Access-Control-Request-Method, Access-Control-Request-Headers"
+            )
+        return response
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)
