@@ -27,6 +27,7 @@ def create_app(config_name=None):
         config_name = os.environ.get("FLASK_ENV", "default")
 
     app = Flask(__name__)
+    app.url_map.strict_slashes = False
 
     # Load configuration
     if isinstance(config_name, str):
@@ -43,7 +44,13 @@ def create_app(config_name=None):
 
     # Initialize extensions
     cors_origins = app.config.get("CORS_ORIGINS", [])
-    cors.init_app(app, resources={r"/api/*": {"origins": cors_origins}})
+    cors.init_app(
+        app,
+        resources={r"/api/*": {"origins": cors_origins}},
+        supports_credentials=True,
+        allow_headers=["Content-Type", "Authorization"],
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    )
     db.init_app(app)
     migrate.init_app(app, db)
     jwt.init_app(app)

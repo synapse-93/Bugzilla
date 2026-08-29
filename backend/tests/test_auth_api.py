@@ -42,3 +42,63 @@ def test_auth_me_unauthorized():
     assert response.status_code == 401
     data = response.get_json()
     assert data["error"]["code"] == "UNAUTHORIZED"
+
+
+def test_auth_cors_options_preflight_no_redirect(monkeypatch):
+    """Verify OPTIONS /api/auth/register returns 200 with CORS headers and no redirect."""
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
+    app = create_app("production")
+    client = app.test_client()
+
+    response = client.options(
+        "/api/auth/register",
+        headers={
+            "Origin": "https://bugzilla-foundation.vercel.app",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("Access-Control-Allow-Origin") == "https://bugzilla-foundation.vercel.app"
+    assert "Location" not in response.headers
+
+
+def test_auth_cors_options_login_preflight_no_redirect(monkeypatch):
+    """Verify OPTIONS /api/auth/login returns 200 with CORS headers and no redirect."""
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
+    app = create_app("production")
+    client = app.test_client()
+
+    response = client.options(
+        "/api/auth/login",
+        headers={
+            "Origin": "https://bugzilla-foundation.vercel.app",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("Access-Control-Allow-Origin") == "https://bugzilla-foundation.vercel.app"
+    assert "Location" not in response.headers
+
+
+def test_auth_trailing_slash_no_redirect(monkeypatch):
+    """Verify routes with trailing slashes do not issue 301/308 redirects."""
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
+    app = create_app("production")
+    client = app.test_client()
+
+    response = client.options(
+        "/api/auth/register/",
+        headers={
+            "Origin": "https://bugzilla-foundation.vercel.app",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "Content-Type",
+        },
+    )
+    assert response.status_code == 200
+    assert "Location" not in response.headers
+

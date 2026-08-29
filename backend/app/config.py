@@ -130,10 +130,14 @@ class ProductionConfigMeta(type):
     def CORS_ORIGINS(cls):
         if "CORS_ORIGINS" in cls.__dict__:
             return cls.__dict__["CORS_ORIGINS"]
+        origins = ["https://bugzilla-foundation.vercel.app"]
         raw = os.environ.get("CORS_ORIGINS", "").strip()
-        if not raw:
-            return []
-        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+        if raw:
+            for origin in raw.split(","):
+                clean = origin.strip()
+                if clean and clean not in origins:
+                    origins.append(clean)
+        return origins
 
 
 class ProductionConfig(Config, metaclass=ProductionConfigMeta):
