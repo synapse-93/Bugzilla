@@ -1,18 +1,27 @@
 import React, { useState, useEffect } from 'react'
 import { Project } from '../types'
-import { useAuth } from '../context/AuthContext'
+import { Plus, Search, Bell, Database } from 'lucide-react'
 import { api } from '../api/client'
-import { Plus, Database, CheckCircle2, AlertTriangle, LogOut, User as UserIcon } from 'lucide-react'
+import { getDisplayProjectKey } from '../utils/helpers'
 
 interface HeaderProps {
   currentProject: Project | null
-  onOpenCreateIssue: () => void
   activeView: string
+  onOpenCreateIssue: () => void
+  onOpenCommandPalette: () => void
+  onOpenNotifications: () => void
+  unreadNotificationsCount?: number
 }
 
-export function Header({ currentProject, onOpenCreateIssue, activeView }: HeaderProps) {
-  const { user, logout } = useAuth()
-  const [dbStatus, setDbStatus] = useState<'checking' | 'reachable' | 'unavailable'>('checking')
+export function Header({
+  currentProject,
+  activeView,
+  onOpenCreateIssue,
+  onOpenCommandPalette,
+  onOpenNotifications,
+  unreadNotificationsCount = 0,
+}: HeaderProps) {
+  const [dbStatus, setDbStatus] = useState<'reachable' | 'degraded' | 'checking'>('checking')
 
   useEffect(() => {
     let mounted = true
@@ -20,65 +29,102 @@ export function Header({ currentProject, onOpenCreateIssue, activeView }: Header
       try {
         const res = await api.health.checkDb()
         if (mounted) {
-          setDbStatus(res.status === 'ok' ? 'reachable' : 'unavailable')
+          setDbStatus(res.status === 'ok' && res.database === 'reachable' ? 'reachable' : 'degraded')
         }
       } catch {
-        if (mounted) {
-          setDbStatus('unavailable')
-        }
+        if (mounted) setDbStatus('degraded')
       }
     }
     checkDb()
-    const timer = setInterval(checkDb, 30000)
+    const interval = setInterval(checkDb, 45000)
     return () => {
       mounted = false
-      clearInterval(timer)
+      clearInterval(interval)
     }
   }, [])
 
-  const viewTitles: Record<string, string> = {
-    issues: 'Issue Tracker',
-    board: 'Kanban Board',
-    analytics: 'Analytics & Reports',
-    settings: 'Project Settings & Team',
-  }
-
   return (
     <header className="app-header">
+      {/* Breadcrumbs */}
       <div className="header-left">
-        <div className="view-title-group">
-          <h1 className="view-title">{viewTitles[activeView] || 'Issues'}</h1>
-          {currentProject && (
-            <span className="project-badge">
-              {currentProject.key} • {currentProject.name}
-            </span>
-          )}
+        <div className="breadcrumbs">
+          <span className="breadcrumb-project">
+            {currentProject ? `${currentProject.name} (${getDisplayProjectKey(currentProject.key)})` : 'Bugzilla'}
+          </span>
+          <span className="breadcrumb-separator">/</span>
+          <span className="breadcrumb-current">
+            {activeView === 'overview'
+              ? 'Overview'
+              : activeView === 'issues'
+              ? 'Issues'
+              : activeView === 'board'
+              ? 'Kanban Board'
+              : activeView === 'milestones'
+              ? 'Milestones'
+              : activeView === 'analytics'
+              ? 'Analytics'
+              : 'Settings'}
+          </span>
         </div>
       </div>
 
+      {/* Action Controls */}
       <div className="header-right">
-        <div className={`db-health-pill ${dbStatus}`} title={`Database: ${dbStatus}`}>
-          <Database size={13} />
-          <span>{dbStatus === 'reachable' ? 'Postgres Live' : dbStatus === 'checking' ? 'Connecting...' : 'DB Offline'}</span>
-          {dbStatus === 'reachable' ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
+        {/* Command Palette Button */}
+        <button
+          className="cmd-palette-trigger"
+          onClick={onOpenCommandPalette}
+          title="Search or jump to (Cmd+K)"
+        >
+          <Search size={14} />
+          <span>Search or jump to...</span>
+          <span className="cmd-key">⌘K</span>
+        </button>
+
+        {/* Database Status Dot */}
+        <div
+          className="db-status-pill"
+          title={`Database Connection: ${dbStatus === 'reachable' ? 'PostgreSQL Neon Online' : 'Checking/Degraded'}`}
+        >
+          <span className={`db-status-dot ${dbStatus}`} />
+          <Database size={12} className="text-muted" />
+          <span style={{ fontSize: '11px' }}>{dbStatus === 'reachable' ? 'DB Online' : 'Connecting'}</span>
         </div>
 
+        {/* Notifications Bell */}
+        <button
+          className="btn-secondary btn-icon"
+          onClick={onOpenNotifications}
+          title="Recent Activity Notifications"
+          style={{ position: 'relative' }}
+        >
+          <Bell size={15} />
+          {unreadNotificationsCount > 0 && (
+            <span
+              style={{
+                position: 'absolute',
+                top: '-2px',
+                right: '-2px',
+                width: '8px',
+                height: '8px',
+                borderRadius: '9999px',
+                backgroundColor: 'var(--accent-primary)',
+              }}
+            />
+          )}
+        </button>
+
+        {/* New Issue Button */}
         {currentProject && (
-          <button className="btn-primary btn-sm" onClick={onOpenCreateIssue}>
+          <button
+            className="btn btn-primary"
+            onClick={onOpenCreateIssue}
+            title="Create new issue (Shortcut: C)"
+          >
             <Plus size={15} />
             <span>New Issue</span>
           </button>
         )}
-
-        <div className="user-menu">
-          <div className="user-avatar" title={user?.email}>
-            {user?.username ? user.username.charAt(0).toUpperCase() : <UserIcon size={14} />}
-          </div>
-          <span className="username">{user?.username}</span>
-          <button className="btn-icon" onClick={logout} title="Sign Out">
-            <LogOut size={15} />
-          </button>
-        </div>
       </div>
     </header>
   )

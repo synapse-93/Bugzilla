@@ -91,6 +91,28 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    createWithFallbackKey: async (data: { name: string; key: string; description?: string }) => {
+      const cleanKey = data.key.trim().toUpperCase()
+      try {
+        const res = await request<{ project: Project }>('/projects', {
+          method: 'POST',
+          body: JSON.stringify({ ...data, key: cleanKey }),
+        })
+        return { ...res, project: { ...res.project, display_key: cleanKey } }
+      } catch (err: any) {
+        if (err.status === 409 || err.code === 'CONFLICT') {
+          // Key collision: generate internal unique key (e.g. TESTA9)
+          const randomSuffix = Math.random().toString(36).substring(2, 4).toUpperCase()
+          const internalKey = `${cleanKey.substring(0, 8)}${randomSuffix}`.substring(0, 10)
+          const retryRes = await request<{ project: Project }>('/projects', {
+            method: 'POST',
+            body: JSON.stringify({ ...data, key: internalKey }),
+          })
+          return { ...retryRes, project: { ...retryRes.project, display_key: cleanKey } }
+        }
+        throw err
+      }
+    },
     get: (id: number) => request<{ project: Project }>(`/projects/${id}`),
     update: (id: number, data: { name?: string; description?: string }) =>
       request<{ project: Project }>(`/projects/${id}`, {

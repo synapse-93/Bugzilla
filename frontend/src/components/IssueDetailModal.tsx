@@ -9,38 +9,42 @@ import {
   PriorityLevel,
   SeverityLevel,
   ResolutionType,
+  IssueRelationship,
+  Attachment,
 } from '../types'
 import { api } from '../api/client'
-import { useAuth } from '../context/AuthContext'
 import {
   X,
-  Send,
   Trash2,
-  Edit3,
-  Clock,
+  Send,
+  Edit2,
+  Check,
+  Paperclip,
+  Activity as ActivityIcon,
   MessageSquare,
-  History,
-  Tag,
-  AlertCircle,
-  CheckCircle2,
-  User,
+  Link as LinkIcon,
+  AlertTriangle,
+  Clock,
+  User as UserIcon,
 } from 'lucide-react'
-
-const ALLOWED_STATUS_TRANSITIONS: Record<IssueStatus, IssueStatus[]> = {
-  OPEN: ['OPEN', 'IN_PROGRESS'],
-  IN_PROGRESS: ['IN_PROGRESS', 'IN_REVIEW', 'OPEN'],
-  IN_REVIEW: ['IN_REVIEW', 'RESOLVED', 'IN_PROGRESS'],
-  RESOLVED: ['RESOLVED', 'CLOSED', 'OPEN', 'IN_PROGRESS'],
-  CLOSED: ['CLOSED', 'OPEN'],
-}
+import {
+  getIssueDisplayIdentifier,
+  formatDate,
+  formatRelativeTime,
+  getStatusColor,
+  getPriorityColor,
+  getStatusLabel,
+} from '../utils/helpers'
+import { toast } from 'sonner'
 
 interface IssueDetailModalProps {
   issue: Issue
   projectId: number
   labels: Label[]
   members: ProjectMember[]
+  allIssues?: Issue[]
   onClose: () => void
-  onIssueUpdated: (updated: Issue) => void
+  onIssueUpdated: (updatedIssue: Issue) => void
   onIssueDeleted: (issueId: number) => void
 }
 
@@ -49,49 +53,58 @@ export function IssueDetailModal({
   projectId,
   labels,
   members,
+  allIssues = [],
   onClose,
   onIssueUpdated,
   onIssueDeleted,
 }: IssueDetailModalProps) {
-  const { user } = useAuth()
-  const [activeTab, setActiveTab] = useState<'comments' | 'activity'>('comments')
+  // Local active tab
+  const [activeTab, setActiveTab] = useState<'comments' | 'activity' | 'relationships' | 'attachments'>('comments')
 
-  // Form states
+  // Form edit states
   const [title, setTitle] = useState(issue.title)
   const [description, setDescription] = useState(issue.description || '')
-  const [status, setStatus] = useState<IssueStatus>(issue.status)
-  const [priority, setPriority] = useState<PriorityLevel>(issue.priority)
-  const [severity, setSeverity] = useState<SeverityLevel>(issue.severity)
-  const [assigneeId, setAssigneeId] = useState<number | undefined>(issue.assignee_id || undefined)
-  const [resolution, setResolution] = useState<ResolutionType | undefined>(issue.resolution || undefined)
-  const [selectedLabelIds, setSelectedLabelIds] = useState<number[]>(
-    issue.labels ? issue.labels.map((l) => l.id) : []
-  )
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [isEditingDesc, setIsEditingDesc] = useState(false)
+  const [savingField, setSavingField] = useState(false)
 
-  // Comments and Activity
+  // Comments state
   const [comments, setComments] = useState<Comment[]>([])
-  const [activities, setActivities] = useState<Activity[]>([])
+  const [loadingComments, setLoadingComments] = useState(false)
   const [newCommentBody, setNewCommentBody] = useState('')
+  const [submittingComment, setSubmittingComment] = useState(false)
   const [editingCommentId, setEditingCommentId] = useState<number | null>(null)
   const [editingCommentBody, setEditingCommentBody] = useState('')
-  const [loadingComments, setLoadingComments] = useState(false)
-  const [loadingActivities, setLoadingActivities] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [submittingComment, setSubmittingComment] = useState(false)
-  const [savingComment, setSavingComment] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
+  // Activity state
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [loadingActivities, setLoadingActivities] = useState(false)
+
+  // Relationships state (client-stored per project/issue context)
+  const [relationships, setRelationships] = useState<IssueRelationship[]>([])
+  const [isAddingRel, setIsAddingRel] = useState(false)
+  const [relTargetIssueId, setRelTargetIssueId] = useState<string>('')
+  const [relType, setRelType] = useState<'BLOCKS' | 'BLOCKED_BY' | 'RELATED' | 'DUPLICATE'>('RELATED')
+
+  // Attachments state (modular client model)
+  const [attachments, setAttachments] = useState<Attachment[]>([])
+
+  // Delete modal state
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deletingIssue, setDeletingIssue] = useState(false)
+
+  // Load comments and activities on mount
   useEffect(() => {
     loadComments()
     loadActivities()
-  }, [issue.id])
+  }, [issue.id, projectId])
 
   const loadComments = async () => {
     setLoadingComments(true)
     try {
       const res = await api.comments.list(projectId, issue.id)
       setComments(res.comments)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load comments:', err)
     } finally {
       setLoadingComments(false)
@@ -103,46 +116,40 @@ export function IssueDetailModal({
     try {
       const res = await api.activities.listIssue(projectId, issue.id)
       setActivities(res.activities)
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load activities:', err)
     } finally {
       setLoadingActivities(false)
     }
   }
 
-  const handleStatusChange = (newStatus: IssueStatus) => {
-    setStatus(newStatus)
-    if (newStatus === 'RESOLVED' || newStatus === 'CLOSED') {
-      if (!resolution) setResolution('FIXED')
-    } else {
-      setResolution(undefined)
-    }
-  }
-
-  const handleSaveChanges = async () => {
-    setSaving(true)
-    setError(null)
+  // Update single field handler
+  const handleUpdateField = async (fields: Partial<Issue> & { label_ids?: number[] }) => {
+    setSavingField(true)
     try {
-      const res = await api.issues.update(projectId, issue.id, {
-        title,
-        description,
-        status,
-        priority,
-        severity,
-        assignee_id: assigneeId || null as any,
-        resolution: resolution || null as any,
-        label_ids: selectedLabelIds,
-      })
+      const res = await api.issues.update(projectId, issue.id, fields)
       onIssueUpdated(res.issue)
+      toast.success('Issue updated')
       loadActivities()
     } catch (err: any) {
-      setError(err.message || 'Failed to update issue')
+      toast.error(err.message || 'Failed to update issue')
     } finally {
-      setSaving(false)
+      setSavingField(false)
     }
   }
 
-  const handleAddComment = async (e: React.FormEvent) => {
+  // Handle label toggle
+  const handleToggleLabel = async (labelId: number) => {
+    const currentLabelIds = (issue.labels || []).map((l) => l.id)
+    const newLabelIds = currentLabelIds.includes(labelId)
+      ? currentLabelIds.filter((id) => id !== labelId)
+      : [...currentLabelIds, labelId]
+
+    await handleUpdateField({ label_ids: newLabelIds })
+  }
+
+  // Handle Comment Submission
+  const handleCreateComment = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newCommentBody.trim()) return
 
@@ -151,326 +158,529 @@ export function IssueDetailModal({
       const res = await api.comments.create(projectId, issue.id, newCommentBody.trim())
       setComments([...comments, res.comment])
       setNewCommentBody('')
+      toast.success('Comment posted')
       loadActivities()
     } catch (err: any) {
-      setError(err.message || 'Failed to post comment')
+      toast.error(err.message || 'Failed to post comment')
     } finally {
       setSubmittingComment(false)
     }
   }
 
-  const handleStartEditComment = (comment: Comment) => {
-    setEditingCommentId(comment.id)
-    setEditingCommentBody(comment.body)
-  }
-
-  const handleCancelEditComment = () => {
-    setEditingCommentId(null)
-    setEditingCommentBody('')
-  }
-
-  const handleSaveEditComment = async (commentId: number) => {
+  // Handle Comment Edit
+  const handleSaveCommentEdit = async (commentId: number) => {
     if (!editingCommentBody.trim()) return
-    setSavingComment(true)
     try {
       const res = await api.comments.update(projectId, issue.id, commentId, editingCommentBody.trim())
       setComments(comments.map((c) => (c.id === commentId ? res.comment : c)))
       setEditingCommentId(null)
-      setEditingCommentBody('')
+      toast.success('Comment updated')
       loadActivities()
     } catch (err: any) {
-      setError(err.message || 'Failed to update comment')
-    } finally {
-      setSavingComment(false)
+      toast.error(err.message || 'Failed to update comment')
     }
   }
 
+  // Handle Comment Delete
   const handleDeleteComment = async (commentId: number) => {
     try {
       await api.comments.delete(projectId, issue.id, commentId)
       setComments(comments.filter((c) => c.id !== commentId))
+      toast.success('Comment removed')
       loadActivities()
     } catch (err: any) {
-      setError(err.message || 'Failed to delete comment')
+      toast.error(err.message || 'Failed to delete comment')
     }
   }
 
+  // Handle Add Relationship
+  const handleAddRelationship = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!relTargetIssueId) return
+    const target = allIssues.find((i) => String(i.id) === relTargetIssueId)
+    if (!target) return
+
+    const newRel: IssueRelationship = {
+      id: Math.random().toString(36).substring(2, 9),
+      source_issue_id: issue.id,
+      target_issue_id: target.id,
+      target_issue_identifier: target.identifier,
+      target_issue_title: target.title,
+      type: relType,
+      created_at: new Date().toISOString(),
+    }
+    setRelationships([...relationships, newRel])
+    setIsAddingRel(false)
+    setRelTargetIssueId('')
+    toast.success('Relationship added')
+  }
+
+  // Handle Delete Issue
   const handleDeleteIssue = async () => {
-    if (!confirm('Are you sure you want to permanently delete this issue?')) return
+    setDeletingIssue(true)
     try {
       await api.issues.delete(projectId, issue.id)
+      toast.success('Issue deleted')
       onIssueDeleted(issue.id)
       onClose()
     } catch (err: any) {
-      setError(err.message || 'Failed to delete issue')
+      toast.error(err.message || 'Failed to delete issue')
+      setDeletingIssue(false)
     }
   }
 
-  const toggleLabel = (labelId: number) => {
-    if (selectedLabelIds.includes(labelId)) {
-      setSelectedLabelIds(selectedLabelIds.filter((id) => id !== labelId))
-    } else {
-      setSelectedLabelIds([...selectedLabelIds, labelId])
-    }
-  }
+  const statusStyles = getStatusColor(issue.status)
+  const priorityStyles = getPriorityColor(issue.priority)
 
   return (
-    <div className="modal-overlay">
-      <div className="modal-content issue-detail-modal">
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal-card"
+        style={{ maxWidth: '900px', width: '95vw', height: '85vh', maxHeight: '850px' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="modal-header">
-          <div className="issue-identifier-group">
-            <span className="font-mono issue-badge">{issue.identifier || `#${issue.issue_number}`}</span>
-            <span className="issue-type-tag">{issue.issue_type}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span className="issue-identifier-tag" style={{ fontSize: '13px' }}>
+              {getIssueDisplayIdentifier(issue.identifier)}
+            </span>
+            <span
+              className="badge-pill"
+              style={{
+                backgroundColor: statusStyles.bg,
+                color: statusStyles.text,
+                borderColor: statusStyles.border,
+              }}
+            >
+              <span className="badge-dot" style={{ backgroundColor: statusStyles.dot }} />
+              <span>{getStatusLabel(issue.status)}</span>
+            </span>
           </div>
-          <button className="btn-icon" onClick={onClose}>
-            <X size={18} />
-          </button>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              className="btn btn-ghost btn-icon text-danger"
+              title="Delete Issue"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <Trash2 size={16} />
+            </button>
+            <button className="btn btn-ghost btn-icon" onClick={onClose}>
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
-        {error && (
-          <div className="error-banner">
-            <AlertCircle size={15} />
-            <span>{error}</span>
-          </div>
-        )}
-
-        <div className="modal-body-split">
-          {/* Main Left Pane: Title, Description, Tabs */}
-          <div className="modal-main-pane">
-            <div className="form-group">
-              <label>Title</label>
-              <input
-                type="text"
-                className="input-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Description</label>
-              <textarea
-                className="input-description"
-                rows={5}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add reproduction steps, expected behavior, or stack traces..."
-              />
-            </div>
-
-            {/* Sub-tabs: Comments & Activity */}
-            <div className="tabs-header">
-              <button
-                className={`tab-btn ${activeTab === 'comments' ? 'active' : ''}`}
-                onClick={() => setActiveTab('comments')}
-              >
-                <MessageSquare size={15} />
-                <span>Comments ({comments.length})</span>
-              </button>
-              <button
-                className={`tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
-                onClick={() => setActiveTab('activity')}
-              >
-                <History size={15} />
-                <span>Activity Timeline</span>
-              </button>
-            </div>
-
-            <div className="tab-pane">
-              {activeTab === 'comments' ? (
-                <div className="comments-section">
-                  <div className="comments-list">
-                    {loadingComments ? (
-                      <div className="text-muted text-sm py-2">Loading comments...</div>
-                    ) : comments.length === 0 ? (
-                      <div className="text-muted text-sm py-4 text-center">No comments yet.</div>
-                    ) : (
-                      comments.map((comment) => (
-                        <div key={comment.id} className="comment-bubble">
-                          <div className="comment-header">
-                            <div className="comment-author">
-                              <div className="avatar-xs">
-                                {comment.author?.username
-                                  ? comment.author.username.charAt(0).toUpperCase()
-                                  : 'U'}
-                              </div>
-                              <strong>{comment.author?.username || 'User'}</strong>
-                              <span className="text-xs text-muted">
-                                {new Date(comment.created_at).toLocaleString()}
-                              </span>
-                            </div>
-                            {user?.id === comment.author_id && (
-                              <div className="comment-actions-group">
-                                {editingCommentId !== comment.id && (
-                                  <button
-                                    className="btn-icon-xs text-muted hover-primary"
-                                    onClick={() => handleStartEditComment(comment)}
-                                    title="Edit Comment"
-                                  >
-                                    <Edit3 size={13} />
-                                  </button>
-                                )}
-                                <button
-                                  className="btn-icon-xs text-muted hover-danger"
-                                  onClick={() => handleDeleteComment(comment.id)}
-                                  title="Delete Comment"
-                                >
-                                  <Trash2 size={13} />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                          {editingCommentId === comment.id ? (
-                            <div className="comment-edit-box">
-                              <textarea
-                                rows={2}
-                                value={editingCommentBody}
-                                onChange={(e) => setEditingCommentBody(e.target.value)}
-                                className="comment-edit-input"
-                              />
-                              <div className="flex-row gap-2 mt-2">
-                                <button
-                                  type="button"
-                                  className="btn-primary btn-xs"
-                                  disabled={savingComment || !editingCommentBody.trim()}
-                                  onClick={() => handleSaveEditComment(comment.id)}
-                                >
-                                  {savingComment ? 'Saving...' : 'Save'}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="btn-secondary btn-xs"
-                                  disabled={savingComment}
-                                  onClick={handleCancelEditComment}
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="comment-body">{comment.body}</div>
-                          )}
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                  {/* Add Comment Form */}
-                  <form onSubmit={handleAddComment} className="add-comment-form">
-                    <textarea
-                      rows={2}
-                      placeholder="Write a reply or status update..."
-                      value={newCommentBody}
-                      onChange={(e) => setNewCommentBody(e.target.value)}
-                    />
-                    <button
-                      type="submit"
-                      className="btn-primary btn-sm"
-                      disabled={submittingComment || !newCommentBody.trim()}
-                    >
-                      <Send size={13} />
-                      <span>{submittingComment ? 'Posting...' : 'Comment'}</span>
-                    </button>
-                  </form>
+        {/* Modal Main Body: 2 Columns */}
+        <div className="modal-body" style={{ display: 'flex', gap: '24px', padding: '20px', flex: 1, overflow: 'hidden' }}>
+          {/* Left Column: Title, Description, Tabs */}
+          <div style={{ flex: '1 1 60%', display: 'flex', flexDirection: 'column', gap: '16px', overflowY: 'auto', paddingRight: '6px' }}>
+            {/* Title Header */}
+            <div>
+              {isEditingTitle ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    autoFocus
+                  />
+                  <button
+                    className="btn btn-primary"
+                    disabled={savingField}
+                    onClick={() => {
+                      setIsEditingTitle(false)
+                      if (title.trim() && title !== issue.title) {
+                        handleUpdateField({ title: title.trim() })
+                      }
+                    }}
+                  >
+                    <Check size={14} />
+                  </button>
                 </div>
               ) : (
-                <div className="activity-timeline">
-                  {loadingActivities ? (
-                    <div className="text-muted text-sm py-2">Loading activity...</div>
-                  ) : activities.length === 0 ? (
-                    <div className="text-muted text-sm py-4 text-center">No recorded activity.</div>
-                  ) : (
-                    activities.map((act) => (
-                      <div key={act.id} className="activity-item">
-                        <div className="activity-dot" />
-                        <div className="activity-content">
-                          <div className="activity-header">
-                            <strong>{act.actor?.username || 'User'}</strong>
-                            <span className="activity-action">{act.action_type.replace('_', ' ')}</span>
-                            <span className="activity-date">
-                              {new Date(act.created_at).toLocaleString()}
-                            </span>
-                          </div>
-                          {(act.old_value || act.new_value) && (
-                            <div className="activity-diff">
-                              {act.old_value && <span className="diff-old">{act.old_value}</span>}
-                              {act.old_value && act.new_value && <span className="diff-arrow">→</span>}
-                              {act.new_value && <span className="diff-new">{act.new_value}</span>}
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
+                <div
+                  style={{ fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}
+                  onClick={() => setIsEditingTitle(true)}
+                >
+                  <span>{issue.title}</span>
+                  <Edit2 size={13} className="text-muted" />
                 </div>
               )}
             </div>
+
+            {/* Description */}
+            <div className="card" style={{ background: 'var(--bg-surface-raised)', padding: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                  Description
+                </span>
+                {!isEditingDesc && (
+                  <button className="btn-ghost" style={{ padding: '2px 6px', fontSize: '11px' }} onClick={() => setIsEditingDesc(true)}>
+                    Edit
+                  </button>
+                )}
+              </div>
+
+              {isEditingDesc ? (
+                <div>
+                  <textarea
+                    className="form-textarea"
+                    rows={4}
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '8px' }}>
+                    <button className="btn btn-secondary" onClick={() => setIsEditingDesc(false)}>
+                      Cancel
+                    </button>
+                    <button
+                      className="btn btn-primary"
+                      disabled={savingField}
+                      onClick={() => {
+                        setIsEditingDesc(false)
+                        handleUpdateField({ description: description.trim() })
+                      }}
+                    >
+                      Save Description
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: '13px', color: description ? 'var(--text-primary)' : 'var(--text-muted)', whiteSpace: 'pre-wrap' }}>
+                  {description || 'No description provided.'}
+                </div>
+              )}
+            </div>
+
+            {/* Tab Navigation */}
+            <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', gap: '16px' }}>
+              <button
+                className={`btn btn-ghost ${activeTab === 'comments' ? 'active' : ''}`}
+                style={{
+                  borderRadius: 0,
+                  borderBottom: activeTab === 'comments' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                  color: activeTab === 'comments' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  padding: '8px 4px',
+                }}
+                onClick={() => setActiveTab('comments')}
+              >
+                <MessageSquare size={14} />
+                <span>Comments ({comments.length})</span>
+              </button>
+
+              <button
+                className={`btn btn-ghost ${activeTab === 'activity' ? 'active' : ''}`}
+                style={{
+                  borderRadius: 0,
+                  borderBottom: activeTab === 'activity' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                  color: activeTab === 'activity' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  padding: '8px 4px',
+                }}
+                onClick={() => setActiveTab('activity')}
+              >
+                <ActivityIcon size={14} />
+                <span>Activity Timeline</span>
+              </button>
+
+              <button
+                className={`btn btn-ghost ${activeTab === 'relationships' ? 'active' : ''}`}
+                style={{
+                  borderRadius: 0,
+                  borderBottom: activeTab === 'relationships' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                  color: activeTab === 'relationships' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  padding: '8px 4px',
+                }}
+                onClick={() => setActiveTab('relationships')}
+              >
+                <LinkIcon size={14} />
+                <span>Relationships ({relationships.length})</span>
+              </button>
+
+              <button
+                className={`btn btn-ghost ${activeTab === 'attachments' ? 'active' : ''}`}
+                style={{
+                  borderRadius: 0,
+                  borderBottom: activeTab === 'attachments' ? '2px solid var(--accent-primary)' : '2px solid transparent',
+                  color: activeTab === 'attachments' ? 'var(--text-primary)' : 'var(--text-muted)',
+                  padding: '8px 4px',
+                }}
+                onClick={() => setActiveTab('attachments')}
+              >
+                <Paperclip size={14} />
+                <span>Attachments</span>
+              </button>
+            </div>
+
+            {/* Tab 1: Comments */}
+            {activeTab === 'comments' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* Comments List */}
+                {loadingComments ? (
+                  <div className="text-muted text-xs py-4 text-center">Loading comments...</div>
+                ) : comments.length === 0 ? (
+                  <div className="text-muted text-xs py-4 text-center">No comments yet. Be the first to reply!</div>
+                ) : (
+                  comments.map((c) => (
+                    <div key={c.id} className="card" style={{ padding: '12px', background: 'var(--bg-surface-raised)' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div className="user-avatar" style={{ width: '20px', height: '20px', fontSize: '10px' }}>
+                            {c.author?.username ? c.author.username.substring(0, 2) : 'U'}
+                          </div>
+                          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {c.author?.username || 'User'}
+                          </span>
+                          <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                            {formatRelativeTime(c.created_at)}
+                          </span>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button
+                            className="btn-ghost btn-icon"
+                            title="Edit Comment"
+                            onClick={() => {
+                              setEditingCommentId(c.id)
+                              setEditingCommentBody(c.body)
+                            }}
+                          >
+                            <Edit2 size={12} />
+                          </button>
+                          <button
+                            className="btn-ghost btn-icon text-danger"
+                            title="Delete Comment"
+                            onClick={() => handleDeleteComment(c.id)}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {editingCommentId === c.id ? (
+                        <div style={{ marginTop: '8px' }}>
+                          <textarea
+                            className="form-textarea"
+                            rows={2}
+                            value={editingCommentBody}
+                            onChange={(e) => setEditingCommentBody(e.target.value)}
+                          />
+                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px', marginTop: '6px' }}>
+                            <button className="btn btn-sm btn-secondary" onClick={() => setEditingCommentId(null)}>
+                              Cancel
+                            </button>
+                            <button className="btn btn-sm btn-primary" onClick={() => handleSaveCommentEdit(c.id)}>
+                              Save
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '13px', color: 'var(--text-primary)', whiteSpace: 'pre-wrap' }}>
+                          {c.body}
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+
+                {/* Comment Input Box */}
+                <form onSubmit={handleCreateComment} style={{ marginTop: '8px' }}>
+                  <textarea
+                    className="form-textarea"
+                    placeholder="Write a comment... (Supports markdown text)"
+                    rows={3}
+                    value={newCommentBody}
+                    onChange={(e) => setNewCommentBody(e.target.value)}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                    <button className="btn btn-primary" type="submit" disabled={submittingComment || !newCommentBody.trim()}>
+                      <Send size={14} />
+                      <span>Post Comment</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {/* Tab 2: Activity Timeline */}
+            {activeTab === 'activity' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {loadingActivities ? (
+                  <div className="text-muted text-xs py-4 text-center">Loading activity timeline...</div>
+                ) : activities.length === 0 ? (
+                  <div className="text-muted text-xs py-4 text-center">No history recorded for this issue.</div>
+                ) : (
+                  activities.map((act) => (
+                    <div key={act.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '6px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                      <div className="user-avatar" style={{ width: '22px', height: '22px', fontSize: '10px' }}>
+                        {act.actor?.username ? act.actor.username.substring(0, 2) : 'A'}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '12px', color: 'var(--text-primary)' }}>
+                          <span style={{ fontWeight: 600 }}>{act.actor?.username || 'User'}</span>{' '}
+                          <span style={{ color: 'var(--text-secondary)' }}>
+                            {act.action_type.toLowerCase().replace('_', ' ')}
+                          </span>
+                          {act.old_value && act.new_value && (
+                            <span style={{ color: 'var(--accent-primary)' }}>
+                              {' '}from {act.old_value} to {act.new_value}
+                            </span>
+                          )}
+                          {!act.old_value && act.new_value && (
+                            <span style={{ color: 'var(--accent-primary)' }}>: "{act.new_value}"</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {formatRelativeTime(act.created_at)}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Tab 3: Relationships */}
+            {activeTab === 'relationships' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    Linked & Dependent Issues
+                  </span>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setIsAddingRel(!isAddingRel)}>
+                    + Link Issue
+                  </button>
+                </div>
+
+                {isAddingRel && (
+                  <form onSubmit={handleAddRelationship} className="card" style={{ background: 'var(--bg-surface-raised)', padding: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px', marginBottom: '10px' }}>
+                      <select
+                        className="form-select"
+                        value={relType}
+                        onChange={(e) => setRelType(e.target.value as any)}
+                      >
+                        <option value="BLOCKS">Blocks</option>
+                        <option value="BLOCKED_BY">Blocked By</option>
+                        <option value="RELATED">Related To</option>
+                        <option value="DUPLICATE">Duplicate Of</option>
+                      </select>
+
+                      <select
+                        className="form-select"
+                        value={relTargetIssueId}
+                        onChange={(e) => setRelTargetIssueId(e.target.value)}
+                        required
+                      >
+                        <option value="">Select target issue...</option>
+                        {allIssues
+                          .filter((i) => i.id !== issue.id)
+                          .map((i) => (
+                            <option key={i.id} value={String(i.id)}>
+                              {i.identifier}: {i.title}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '6px' }}>
+                      <button className="btn btn-secondary btn-sm" type="button" onClick={() => setIsAddingRel(false)}>
+                        Cancel
+                      </button>
+                      <button className="btn btn-primary btn-sm" type="submit" disabled={!relTargetIssueId}>
+                        Link
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {relationships.length === 0 ? (
+                  <div className="text-muted text-xs py-4 text-center">No linked relationships yet.</div>
+                ) : (
+                  relationships.map((rel) => (
+                    <div key={rel.id} className="card" style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <span className="badge-pill" style={{ background: 'var(--bg-surface-hover)', marginRight: '8px' }}>
+                          {rel.type.replace('_', ' ')}
+                        </span>
+                        <span style={{ fontWeight: 500, fontSize: '13px' }}>
+                          {rel.target_issue_identifier}: {rel.target_issue_title}
+                        </span>
+                      </div>
+                      <button
+                        className="btn-ghost btn-icon text-danger"
+                        onClick={() => setRelationships(relationships.filter((r) => r.id !== rel.id))}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Tab 4: Attachments */}
+            {activeTab === 'attachments' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div className="card" style={{ padding: '24px', borderStyle: 'dashed', textAlign: 'center' }}>
+                  <Paperclip size={28} className="text-muted mb-2" />
+                  <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}>
+                    Drop files here or click to attach
+                  </div>
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Screenshots, logs, and trace documents
+                  </div>
+                </div>
+
+                {attachments.length === 0 ? (
+                  <div className="text-muted text-xs py-2 text-center">No attachments uploaded.</div>
+                ) : (
+                  attachments.map((att) => (
+                    <div key={att.id} className="card" style={{ padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Paperclip size={14} className="text-muted" />
+                        <span style={{ fontSize: '13px', fontWeight: 500 }}>{att.filename}</span>
+                      </div>
+                      <button className="btn-ghost btn-icon text-danger" onClick={() => setAttachments(attachments.filter((a) => a.id !== att.id))}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Right Sidebar Properties */}
-          <div className="modal-sidebar-pane">
-            <div className="sidebar-field">
-              <label>Status</label>
+          {/* Right Column: Properties & Metadata */}
+          <div style={{ flex: '1 1 40%', display: 'flex', flexDirection: 'column', gap: '14px', borderLeft: '1px solid var(--border-subtle)', paddingLeft: '20px' }}>
+            {/* Status Select */}
+            <div className="form-group">
+              <label className="form-label">Status</label>
               <select
-                value={status}
-                onChange={(e) => handleStatusChange(e.target.value as IssueStatus)}
+                className="form-select"
+                value={issue.status}
+                disabled={savingField}
+                onChange={(e) => handleUpdateField({ status: e.target.value as IssueStatus })}
               >
-                {(ALLOWED_STATUS_TRANSITIONS[issue.status] || ['OPEN', 'IN_PROGRESS', 'IN_REVIEW', 'RESOLVED', 'CLOSED']).map((s) => (
-                  <option key={s} value={s}>
-                    {s === 'OPEN' ? 'Open' : s === 'IN_PROGRESS' ? 'In Progress' : s === 'IN_REVIEW' ? 'In Review' : s === 'RESOLVED' ? 'Resolved' : 'Closed'}
-                  </option>
-                ))}
+                <option value="OPEN">Open</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="IN_REVIEW">In Review</option>
+                <option value="RESOLVED">Resolved</option>
+                <option value="CLOSED">Closed</option>
               </select>
             </div>
 
-            <div className="sidebar-field">
-              <label>Priority</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as PriorityLevel)}
-              >
-                <option value="URGENT">Urgent</option>
-                <option value="HIGH">High</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="LOW">Low</option>
-              </select>
-            </div>
-
-            <div className="sidebar-field">
-              <label>Severity</label>
-              <select
-                value={severity}
-                onChange={(e) => setSeverity(e.target.value as SeverityLevel)}
-              >
-                <option value="CRITICAL">Critical</option>
-                <option value="HIGH">High</option>
-                <option value="MEDIUM">Medium</option>
-                <option value="LOW">Low</option>
-              </select>
-            </div>
-
-            <div className="sidebar-field">
-              <label>Assignee</label>
-              <select
-                value={assigneeId || ''}
-                onChange={(e) => setAssigneeId(e.target.value ? Number(e.target.value) : undefined)}
-              >
-                <option value="">Unassigned</option>
-                {members.map((m) => (
-                  <option key={m.user_id} value={m.user_id}>
-                    {m.user?.username || `User #${m.user_id}`} ({m.role})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {(status === 'RESOLVED' || status === 'CLOSED') && (
-              <div className="sidebar-field">
-                <label>Resolution</label>
+            {/* Resolution (for Resolved / Closed) */}
+            {(issue.status === 'RESOLVED' || issue.status === 'CLOSED') && (
+              <div className="form-group">
+                <label className="form-label">Resolution</label>
                 <select
-                  value={resolution || ''}
-                  onChange={(e) => setResolution(e.target.value as ResolutionType || undefined)}
+                  className="form-select"
+                  value={issue.resolution || ''}
+                  disabled={savingField}
+                  onChange={(e) => handleUpdateField({ resolution: (e.target.value || null) as ResolutionType | null })}
                 >
                   <option value="">None</option>
                   <option value="FIXED">Fixed</option>
@@ -482,54 +692,119 @@ export function IssueDetailModal({
               </div>
             )}
 
-            <div className="sidebar-field">
-              <label>Labels</label>
-              <div className="labels-toggle-list">
-                {labels.length === 0 ? (
-                  <span className="text-muted text-xs">No project labels</span>
-                ) : (
-                  labels.map((lbl) => {
-                    const isSelected = selectedLabelIds.includes(lbl.id)
-                    return (
-                      <button
-                        key={lbl.id}
-                        type="button"
-                        className={`label-chip-toggle ${isSelected ? 'selected' : ''}`}
-                        style={{
-                          borderColor: lbl.color,
-                          backgroundColor: isSelected ? `${lbl.color}33` : 'transparent',
-                          color: isSelected ? '#fff' : lbl.color,
-                        }}
-                        onClick={() => toggleLabel(lbl.id)}
-                      >
-                        {lbl.name}
-                      </button>
-                    )
-                  })
-                )}
+            {/* Priority Select */}
+            <div className="form-group">
+              <label className="form-label">Priority</label>
+              <select
+                className="form-select"
+                value={issue.priority}
+                disabled={savingField}
+                onChange={(e) => handleUpdateField({ priority: e.target.value as PriorityLevel })}
+              >
+                <option value="URGENT">Urgent</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+              </select>
+            </div>
+
+            {/* Severity Select */}
+            <div className="form-group">
+              <label className="form-label">Severity</label>
+              <select
+                className="form-select"
+                value={issue.severity}
+                disabled={savingField}
+                onChange={(e) => handleUpdateField({ severity: e.target.value as SeverityLevel })}
+              >
+                <option value="CRITICAL">Critical</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+              </select>
+            </div>
+
+            {/* Assignee Select */}
+            <div className="form-group">
+              <label className="form-label">Assignee</label>
+              <select
+                className="form-select"
+                value={issue.assignee_id ? String(issue.assignee_id) : ''}
+                disabled={savingField}
+                onChange={(e) => handleUpdateField({ assignee_id: e.target.value ? Number(e.target.value) : null })}
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.user_id} value={String(m.user_id)}>
+                    {m.user?.username || `User ${m.user_id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Labels Multi-Chip Toggle */}
+            <div className="form-group">
+              <label className="form-label">Labels</label>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {labels.map((lbl) => {
+                  const isSelected = (issue.labels || []).some((l) => l.id === lbl.id)
+                  return (
+                    <button
+                      key={lbl.id}
+                      type="button"
+                      className="label-chip"
+                      style={{
+                        backgroundColor: isSelected ? `${lbl.color}30` : 'var(--bg-surface-raised)',
+                        color: isSelected ? lbl.color : 'var(--text-muted)',
+                        border: isSelected ? `1px solid ${lbl.color}` : '1px solid var(--border-subtle)',
+                        cursor: 'pointer',
+                      }}
+                      onClick={() => handleToggleLabel(lbl.id)}
+                    >
+                      {lbl.name}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
-            <div className="modal-actions-sidebar">
-              <button
-                className="btn-primary full-width"
-                onClick={handleSaveChanges}
-                disabled={saving}
-              >
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-
-              <button
-                className="btn-danger-outline full-width mt-2"
-                onClick={handleDeleteIssue}
-              >
-                <Trash2 size={14} />
-                <span>Delete Issue</span>
-              </button>
+            {/* Metadata Footer */}
+            <div style={{ marginTop: 'auto', borderTop: '1px solid var(--border-subtle)', paddingTop: '12px', fontSize: '11px', color: 'var(--text-muted)' }}>
+              <div>Created: {formatDate(issue.created_at)}</div>
+              <div>Updated: {formatRelativeTime(issue.updated_at)}</div>
+              {issue.creator && <div>Creator: {issue.creator.username}</div>}
             </div>
           </div>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div className="modal-overlay" style={{ zIndex: 120 }}>
+          <div className="modal-card" style={{ maxWidth: '420px' }}>
+            <div className="modal-header">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-danger)' }}>
+                <AlertTriangle size={18} />
+                <h3 style={{ fontSize: '14px', fontWeight: 600 }}>Delete Issue</h3>
+              </div>
+            </div>
+            <div className="modal-body">
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                Are you sure you want to permanently delete <strong>{getIssueDisplayIdentifier(issue.identifier)}</strong>?
+                This action cannot be undone.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setShowDeleteConfirm(false)} disabled={deletingIssue}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" onClick={handleDeleteIssue} disabled={deletingIssue}>
+                {deletingIssue ? 'Deleting...' : 'Delete Issue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
