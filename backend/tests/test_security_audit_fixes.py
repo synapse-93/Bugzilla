@@ -681,3 +681,48 @@ def test_non_member_access_forbidden(app_with_db, seed_data):
     assert res.status_code == 403
 
 
+# ==========================================
+# 14. MEMBER REMOVAL PERMISSION & INVARIANTS
+# ==========================================
+
+def test_remove_member_permissions_and_invariants(app_with_db, seed_data):
+    """Verify member removal permissions, self-leave, and non-existent entity handling."""
+    client = app_with_db.test_client()
+    headers_u1 = auth_headers(app_with_db, seed_data["user1_id"])  # Admin in Proj1
+    headers_u2 = auth_headers(app_with_db, seed_data["user2_id"])  # Developer in Proj1
+    proj1_id = seed_data["proj1_id"]
+
+    # 1. Developer cannot remove Admin -> 403
+    res = client.delete(
+        f"/api/projects/{proj1_id}/members/{seed_data['user1_id']}",
+        headers=headers_u2,
+    )
+    assert res.status_code == 403
+    assert res.get_json()["error"]["code"] == "FORBIDDEN"
+
+    # 2. Removing member from non-existent project -> 404
+    res = client.delete(
+        f"/api/projects/99999/members/{seed_data['user2_id']}",
+        headers=headers_u1,
+    )
+    assert res.status_code == 404
+    assert res.get_json()["error"]["code"] == "NOT_FOUND"
+
+    # 3. Removing non-existent member from existing project -> 404
+    res = client.delete(
+        f"/api/projects/{proj1_id}/members/99999",
+        headers=headers_u1,
+    )
+    assert res.status_code == 404
+    assert res.get_json()["error"]["code"] == "NOT_FOUND"
+
+    # 4. Developer can leave project (self-removal) -> 200
+    res = client.delete(
+        f"/api/projects/{proj1_id}/members/{seed_data['user2_id']}",
+        headers=headers_u2,
+    )
+    assert res.status_code == 200
+    assert res.get_json()["status"] == "removed"
+
+
+

@@ -255,13 +255,6 @@ def remove_member(project_id: int, user_id: int):
     if not current_user:
         return api_error("UNAUTHORIZED", "Invalid credentials", 401)
 
-    caller_role = get_project_member_role(project_id, current_user.id)
-    if not caller_role:
-        return api_error("FORBIDDEN", "You are not a member of this project", 403)
-
-    if caller_role != "ADMIN" and current_user.id != user_id:
-        return api_error("FORBIDDEN", "Only project admins can remove other members", 403)
-
     project = (
         db.session.query(Project)
         .filter_by(id=project_id)
@@ -270,6 +263,13 @@ def remove_member(project_id: int, user_id: int):
     )
     if not project:
         return api_error("NOT_FOUND", "Project not found", 404)
+
+    caller_member = ProjectMember.query.filter_by(project_id=project_id, user_id=current_user.id).first()
+    if not caller_member:
+        return api_error("FORBIDDEN", "You are not a member of this project", 403)
+
+    if caller_member.role != "ADMIN" and current_user.id != user_id:
+        return api_error("FORBIDDEN", "Only project admins can remove other members", 403)
 
     member = ProjectMember.query.filter_by(project_id=project_id, user_id=user_id).first()
     if not member:

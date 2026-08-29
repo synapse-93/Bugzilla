@@ -1,7 +1,5 @@
 import { Project, Issue, Label, Comment, Activity, AnalyticsSummary, ProjectMember, User } from '../types'
 
-const BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '') + '/api'
-
 export class ApiError extends Error {
   code: string
   status: number
@@ -15,7 +13,23 @@ export class ApiError extends Error {
   }
 }
 
+export function getApiBaseUrl(): string {
+  const rawUrl = (import.meta.env.VITE_API_URL || '').trim()
+  if (!rawUrl) {
+    if (import.meta.env.PROD) {
+      throw new ApiError(
+        'CONFIG_ERROR',
+        'VITE_API_URL environment variable is required in production builds. Please set VITE_API_URL in your Vercel project environment variables (e.g. https://your-backend-api.onrender.com).',
+        500
+      )
+    }
+    return '/api'
+  }
+  return rawUrl.replace(/\/+$/, '') + '/api'
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  const baseUrl = getApiBaseUrl()
   const token = localStorage.getItem('bugzilla_auth_token')
   const headers = new Headers(options.headers || {})
 
@@ -27,7 +41,8 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers.set('Authorization', `Bearer ${token}`)
   }
 
-  const url = `${BASE_URL}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`
+  const url = `${baseUrl}${cleanEndpoint}`
   const response = await fetch(url, { ...options, headers })
 
   if (response.status === 204) {

@@ -42,7 +42,7 @@ class Config:
 class DevelopmentConfigMeta(type):
     """Metaclass for dynamic environment variable resolution in development."""
     def __dir__(cls):
-        return super().__dir__() + ["SQLALCHEMY_DATABASE_URI", "JWT_SECRET_KEY"]
+        return super().__dir__() + ["SQLALCHEMY_DATABASE_URI", "JWT_SECRET_KEY", "CORS_ORIGINS"]
 
     @property
     def SQLALCHEMY_DATABASE_URI(cls):
@@ -59,16 +59,30 @@ class DevelopmentConfigMeta(type):
             "dev-local-development-jwt-secret-not-for-production"
         )
 
+    @property
+    def CORS_ORIGINS(cls):
+        if "CORS_ORIGINS" in cls.__dict__:
+            return cls.__dict__["CORS_ORIGINS"]
+        raw = os.environ.get("CORS_ORIGINS", "").strip()
+        if raw:
+            return [origin.strip() for origin in raw.split(",") if origin.strip()]
+        return [
+            "http://localhost:5173",
+            "http://localhost:3000",
+            "http://127.0.0.1:5173",
+            "http://127.0.0.1:3000",
+        ]
+
 
 class DevelopmentConfig(Config, metaclass=DevelopmentConfigMeta):
     """Development configuration."""
     DEBUG = True
 
     def __dir__(self):
-        return super().__dir__() + ["SQLALCHEMY_DATABASE_URI", "JWT_SECRET_KEY"]
+        return super().__dir__() + ["SQLALCHEMY_DATABASE_URI", "JWT_SECRET_KEY", "CORS_ORIGINS"]
 
     def __getattr__(self, name):
-        if name in ("SQLALCHEMY_DATABASE_URI", "JWT_SECRET_KEY"):
+        if name in ("SQLALCHEMY_DATABASE_URI", "JWT_SECRET_KEY", "CORS_ORIGINS"):
             return getattr(self.__class__, name)
         raise AttributeError(f"{self.__class__.__name__} object has no attribute {name}")
 
@@ -76,7 +90,7 @@ class DevelopmentConfig(Config, metaclass=DevelopmentConfigMeta):
 class ProductionConfigMeta(type):
     """Metaclass ensuring JWT_SECRET_KEY and DATABASE_URL are explicitly defined in environment for production."""
     def __dir__(cls):
-        return super().__dir__() + ["JWT_SECRET_KEY", "SQLALCHEMY_DATABASE_URI"]
+        return super().__dir__() + ["JWT_SECRET_KEY", "SQLALCHEMY_DATABASE_URI", "CORS_ORIGINS"]
 
     @property
     def JWT_SECRET_KEY(cls):
@@ -102,16 +116,25 @@ class ProductionConfigMeta(type):
             )
         return normalize_database_url(raw_url)
 
+    @property
+    def CORS_ORIGINS(cls):
+        if "CORS_ORIGINS" in cls.__dict__:
+            return cls.__dict__["CORS_ORIGINS"]
+        raw = os.environ.get("CORS_ORIGINS", "").strip()
+        if not raw:
+            return []
+        return [origin.strip() for origin in raw.split(",") if origin.strip()]
+
 
 class ProductionConfig(Config, metaclass=ProductionConfigMeta):
     """Production configuration."""
     DEBUG = False
 
     def __dir__(self):
-        return super().__dir__() + ["JWT_SECRET_KEY", "SQLALCHEMY_DATABASE_URI"]
+        return super().__dir__() + ["JWT_SECRET_KEY", "SQLALCHEMY_DATABASE_URI", "CORS_ORIGINS"]
 
     def __getattr__(self, name):
-        if name in ("JWT_SECRET_KEY", "SQLALCHEMY_DATABASE_URI"):
+        if name in ("JWT_SECRET_KEY", "SQLALCHEMY_DATABASE_URI", "CORS_ORIGINS"):
             return getattr(self.__class__, name)
         raise AttributeError(f"{self.__class__.__name__} object has no attribute {name}")
 
