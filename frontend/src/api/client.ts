@@ -116,6 +116,11 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    oauthCheck: (data: { email?: string; username?: string }) =>
+      request<{ exists: boolean; username?: string }>('/auth/oauth/check', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
     me: () => request<{ user: User }>('/auth/me'),
     getProfile: () => request<{ user: User }>('/auth/profile'),
     updateProfile: (data: Partial<User>) =>

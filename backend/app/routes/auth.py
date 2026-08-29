@@ -243,13 +243,6 @@ def oauth_google():
         db.session.add(user)
         db.session.commit()
 
-    access_token = create_access_token(identity=str(user.id))
-    return jsonify({
-        "user": user.to_dict(include_email=True),
-        "access_token": access_token,
-    }), 200
-
-
 @auth_bp.route("/auth/oauth/github", methods=["POST"])
 def oauth_github():
     """Handle GitHub OAuth login/registration."""
@@ -257,20 +250,31 @@ def oauth_github():
     username = (data.get("username") or "").strip()
     email = (data.get("email") or "").strip().lower()
     avatar_url = data.get("avatar_url")
+    display_name = data.get("name")
 
-    if not username:
-        return api_error("VALIDATION_ERROR", "GitHub username is required", 400)
+    if not username and not email:
+        return api_error("VALIDATION_ERROR", "GitHub username or email is required", 400)
 
-    user = User.query.filter(
-        (User.username == username) | (User.email == email if email else False)
-    ).first()
+    user = None
+    if email:
+        user = User.query.filter_by(email=email).first()
+    if not user and username:
+        user = User.query.filter_by(username=username).first()
 
     if not user:
+        clean_user = username or email.split("@")[0]
+        base_user = clean_user
+        idx = 1
+        while User.query.filter_by(username=clean_user).first():
+            clean_user = f"{base_user}{idx}"
+            idx += 1
+
         user = User(
-            username=username,
-            email=email if email else f"{username}@github.bugzilla.local",
+            username=clean_user,
+            email=email if email else f"{clean_user}@github.bugzilla.local",
+            display_name=display_name or clean_user,
             avatar_url=avatar_url,
-            github_url=f"https://github.com/{username}",
+            github_url=f"https://github.com/{username}" if username else None,
             auth_provider="GITHUB",
             is_email_verified=bool(email),
         )
@@ -281,6 +285,25 @@ def oauth_github():
     return jsonify({
         "user": user.to_dict(include_email=True),
         "access_token": access_token,
+    }), 200
+
+
+@auth_bp.route("/auth/oauth/check", methods=["POST"])
+def oauth_check():
+    """Check if an OAuth user already exists in the system."""
+    data = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    username = (data.get("username") or "").strip()
+
+    user = None
+    if email:
+        user = User.query.filter_by(email=email).first()
+    if not user and username:
+        user = User.query.filter_by(username=username).first()
+
+    return jsonify({
+        "exists": user is not None,
+        "username": user.username if user else None,
     }), 200
 
 
