@@ -236,22 +236,25 @@ export function Sidebar({
 
       {/* User Footer */}
       <div className="sidebar-footer">
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden', cursor: 'pointer' }}
+        <button
+          type="button"
+          className="user-profile-btn"
           onClick={() => onChangeView('profile')}
+          title="My Profile"
+          style={{ flex: 1, minWidth: 0 }}
         >
           {user?.avatar_url ? (
             <img
               src={user.avatar_url}
               alt={user.username}
-              style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover' }}
+              style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
             />
           ) : (
-            <div className="user-avatar">
+            <div className="user-avatar" style={{ flexShrink: 0 }}>
               {user?.username ? user.username.substring(0, 2) : 'U'}
             </div>
           )}
-          <div style={{ overflow: 'hidden' }}>
+          <div style={{ overflow: 'hidden', minWidth: 0, flex: 1 }}>
             <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
               {user?.display_name || user?.username || 'Guest'}
             </div>
@@ -259,12 +262,14 @@ export function Sidebar({
               {user?.email || `@${user?.username}`}
             </div>
           </div>
-        </div>
+        </button>
 
         <button
+          type="button"
           className="btn-ghost btn-icon"
           title="Sign Out"
           onClick={() => logout()}
+          style={{ flexShrink: 0, marginLeft: '4px' }}
         >
           <LogOut size={15} />
         </button>
