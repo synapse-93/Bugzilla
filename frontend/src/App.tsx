@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { AuthProvider, useAuth } from './context/AuthContext'
-import { Project, Issue, Label, ProjectMember, Activity, Milestone, IssueStatus } from './types'
+import { User, Project, Issue, Label, ProjectMember, Activity, Milestone, IssueStatus } from './types'
 import { api } from './api/client'
 import { Header } from './components/Header'
 import { Sidebar, SidebarContent, ActiveView } from './components/Sidebar'
@@ -23,16 +23,18 @@ import { StackedLogo } from './components/StackedLogo'
 import { Sheet, SheetContent } from './components/ui/sheet'
 import { Button } from './components/ui/button'
 import { Card } from './components/ui/card'
-import { FolderPlus, PlusCircle, Loader2 } from 'lucide-react'
+import { FolderPlus, PlusCircle } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
 
-function KaizenApp() {
-  const { user, isLoading: authLoading } = useAuth()
+interface AuthenticatedAppProps {
+  user: User
+}
 
+function AuthenticatedApp({ user }: AuthenticatedAppProps) {
   // Project state
   const [projects, setProjects] = useState<Project[]>([])
   const [currentProject, setCurrentProject] = useState<Project | null>(null)
-  const [loadingProjects, setLoadingProjects] = useState(false)
+  const [loadingProjects, setLoadingProjects] = useState(true)
 
   // Project resource state
   const [issues, setIssues] = useState<Issue[]>([])
@@ -56,11 +58,15 @@ function KaizenApp() {
   const [isInvitationsOpen, setIsInvitationsOpen] = useState(false)
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0)
 
-  // Global Keyboard Shortcuts (Cmd+K / Ctrl+K and C)
+  // Global Keyboard Shortcuts (Cmd+K / Ctrl+K, /, and C)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
-      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable
+      const isInput =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
 
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
@@ -78,67 +84,89 @@ function KaizenApp() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [currentProject])
 
-  // Load Projects & Pending Invitations on Auth
+  // Load Projects & Pending Invitations for this user instance
   useEffect(() => {
-    if (!user) return
+    let isSubscribed = true
+    setLoadingProjects(true)
 
     async function loadInitialData() {
-      setLoadingProjects(true)
       try {
         const [projRes, invRes] = await Promise.all([
           api.projects.list(),
           api.invitations.myInvitations().catch(() => ({ invitations: [] })),
         ])
+
+        if (!isSubscribed) return
+
         setProjects(projRes.projects)
         setPendingInvitationsCount(invRes.invitations.length)
-        if (projRes.projects.length > 0 && !currentProject) {
+        if (projRes.projects.length > 0) {
           setCurrentProject(projRes.projects[0])
+        } else {
+          setCurrentProject(null)
         }
       } catch (err) {
-        console.error('Failed to load initial data:', err)
+        if (!isSubscribed) return
+        console.error('Failed to load initial data for user:', err)
       } finally {
-        setLoadingProjects(false)
+        if (isSubscribed) {
+          setLoadingProjects(false)
+        }
       }
     }
 
     loadInitialData()
-  }, [user])
+    return () => {
+      isSubscribed = false
+    }
+  }, [user.id])
 
   // Load Issues, Labels, Members, Activities, Milestones when Current Project changes
   useEffect(() => {
+    let isSubscribed = true
+
     if (!currentProject) {
       setIssues([])
       setLabels([])
       setMembers([])
       setActivities([])
       setMilestones([])
+      setLoadingIssues(false)
       return
     }
 
-    loadProjectData(currentProject.id, filters)
-  }, [currentProject?.id, filters])
-
-  const loadProjectData = async (projectId: number, activeFilters: Record<string, string | undefined>) => {
+    const projectId = currentProject.id
     setLoadingIssues(true)
-    try {
-      const [issuesRes, labelsRes, membersRes, activitiesRes, milestonesRes] = await Promise.all([
-        api.issues.list(projectId, activeFilters),
-        api.labels.list(projectId),
-        api.projects.getMembers(projectId),
-        api.activities.listProject(projectId).catch(() => ({ activities: [] })),
-        api.milestones.list(projectId).catch(() => ({ milestones: [] })),
-      ])
-      setIssues(issuesRes.issues)
-      setLabels(labelsRes.labels)
-      setMembers(membersRes.members)
-      setActivities(activitiesRes.activities)
-      setMilestones(milestonesRes.milestones)
-    } catch (err) {
-      console.error('Failed to fetch project data:', err)
-    } finally {
-      setLoadingIssues(false)
+
+    Promise.all([
+      api.issues.list(projectId, filters),
+      api.labels.list(projectId),
+      api.projects.getMembers(projectId),
+      api.activities.listProject(projectId).catch(() => ({ activities: [] })),
+      api.milestones.list(projectId).catch(() => ({ milestones: [] })),
+    ])
+      .then(([issuesRes, labelsRes, membersRes, activitiesRes, milestonesRes]) => {
+        if (!isSubscribed) return
+        setIssues(issuesRes.issues)
+        setLabels(labelsRes.labels)
+        setMembers(membersRes.members)
+        setActivities(activitiesRes.activities)
+        setMilestones(milestonesRes.milestones)
+      })
+      .catch((err) => {
+        if (!isSubscribed) return
+        console.error('Failed to fetch project data:', err)
+      })
+      .finally(() => {
+        if (isSubscribed) {
+          setLoadingIssues(false)
+        }
+      })
+
+    return () => {
+      isSubscribed = false
     }
-  }
+  }, [currentProject?.id, filters])
 
   // Refresh handlers
   const handleRefreshMembers = async () => {
@@ -254,27 +282,6 @@ function KaizenApp() {
     setMilestones(milestones.filter((m) => String(m.id) !== String(milestoneId)))
   }
 
-  if (authLoading) {
-    return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background gap-3">
-        <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/20 text-primary animate-pulse">
-          <StackedLogo size={22} color="currentColor" />
-        </div>
-        <p className="text-[13px] font-semibold text-foreground tracking-tight">KAIZEN</p>
-        <p className="text-[11px] text-muted-foreground">Initializing workspace...</p>
-      </div>
-    )
-  }
-
-  if (!user) {
-    return (
-      <>
-        <AuthModal />
-        <Toaster theme="dark" position="bottom-right" richColors />
-      </>
-    )
-  }
-
   return (
     <div className="flex min-h-screen bg-background text-foreground antialiased selection:bg-primary/20">
       {/* Desktop Persistent Sidebar */}
@@ -341,6 +348,11 @@ function KaizenApp() {
             <CollaboratorDiscoveryView currentProject={currentProject} projects={projects} />
           ) : activeView === 'profile' ? (
             <ProfileView />
+          ) : loadingProjects ? (
+            <div className="py-20 text-center text-muted-foreground text-[13px] flex flex-col items-center justify-center gap-2">
+              <div className="h-6 w-6 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              <span>Loading workspace projects...</span>
+            </div>
           ) : !currentProject ? (
             <Card className="p-12 text-center border-dashed max-w-lg mx-auto my-12">
               <FolderPlus className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
@@ -489,10 +501,39 @@ function KaizenApp() {
           onIssueDeleted={handleIssueDeleted}
         />
       )}
-
-      {/* Global Toast Notifications */}
-      <Toaster theme="dark" position="bottom-right" richColors />
     </div>
+  )
+}
+
+function KaizenApp() {
+  const { user, isLoading: authLoading } = useAuth()
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background gap-3">
+        <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/20 text-primary animate-pulse">
+          <StackedLogo size={22} color="currentColor" />
+        </div>
+        <p className="text-[13px] font-semibold text-foreground tracking-tight">KAIZEN</p>
+        <p className="text-[11px] text-muted-foreground">Initializing workspace...</p>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <>
+        <AuthModal />
+        <Toaster theme="dark" position="bottom-right" richColors />
+      </>
+    )
+  }
+
+  return (
+    <>
+      <AuthenticatedApp key={user.id} user={user} />
+      <Toaster theme="dark" position="bottom-right" richColors />
+    </>
   )
 }
 

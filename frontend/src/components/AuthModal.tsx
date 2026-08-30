@@ -153,6 +153,21 @@ export function AuthModal() {
     }
   }
 
+  const resetForm = () => {
+    setUsername('')
+    setEmail('')
+    setPassword('')
+    setChosenUsername('')
+    setShowPassword(false)
+  }
+
+  // Clear form on unmount
+  useEffect(() => {
+    return () => {
+      resetForm()
+    }
+  }, [])
+
   // Email / Password Login
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -169,6 +184,7 @@ export function AuthModal() {
         password,
       })
       toast.success('Welcome back to Kaizen!')
+      resetForm()
     } catch (err: any) {
       toast.error(err.message || 'Invalid username or password')
     } finally {
@@ -196,6 +212,7 @@ export function AuthModal() {
         password,
       })
       toast.success('Account created! Welcome to Kaizen.')
+      resetForm()
     } catch (err: any) {
       toast.error(err.message || 'Registration failed')
     } finally {
@@ -216,6 +233,7 @@ export function AuthModal() {
         password: guestPass,
       })
       toast.success(`Guest session started as @${guestUser}`)
+      resetForm()
     } catch (err: any) {
       toast.error(err.message || 'Failed to start guest session')
     } finally {
@@ -242,6 +260,7 @@ export function AuthModal() {
       })
       toast.success(`Account verified! Welcome, @${cleanUser}.`)
       resetOAuthState()
+      resetForm()
     } catch (err: any) {
       toast.error(err.message || 'Username registration failed')
     } finally {

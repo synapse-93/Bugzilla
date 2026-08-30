@@ -122,6 +122,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     api.auth.logout().catch(() => {})
     localStorage.removeItem('bugzilla_auth_token')
+    try {
+      sessionStorage.clear()
+    } catch (_) {}
     setToken(null)
     setUser(null)
   }
