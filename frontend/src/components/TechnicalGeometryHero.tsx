@@ -1,6 +1,6 @@
 import React from 'react'
-import { LiveIssueIntelligence } from './LiveIssueIntelligence'
+import { MinimalIssueHero } from './MinimalIssueHero'
 
-export { LiveIssueIntelligence }
-export const TechnicalGeometryHero = LiveIssueIntelligence
-export default LiveIssueIntelligence
+export { MinimalIssueHero }
+export const TechnicalGeometryHero = MinimalIssueHero
+export default MinimalIssueHero

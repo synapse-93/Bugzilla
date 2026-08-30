@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { StackedLogo } from './StackedLogo'
-import { LiveIssueIntelligence } from './LiveIssueIntelligence'
+import { MinimalIssueHero } from './MinimalIssueHero'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Card, CardContent } from './ui/card'
@@ -636,9 +636,9 @@ export function AuthModal() {
           </Card>
         </div>
 
-        {/* Right Column: Live Issue Intelligence System Observability Visual */}
-        <div className="hidden lg:flex lg:col-span-5 items-center justify-center relative w-full overflow-hidden">
-          <LiveIssueIntelligence className="w-full" />
+        {/* Right Column: Minimalist Issue Lifecycle Art */}
+        <div className="hidden lg:flex lg:col-span-5 items-center justify-center relative w-full overflow-visible">
+          <MinimalIssueHero className="w-full" />
         </div>
 
       </div>
