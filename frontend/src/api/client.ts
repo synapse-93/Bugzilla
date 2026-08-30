@@ -131,6 +131,14 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
+    completeOAuthRegistration: (data: { pending_token: string; username: string }) =>
+      request<{ user: User; access_token: string }>('/auth/oauth/complete-registration', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }),
+    getGoogleAuthUrl: () => request<{ url: string }>('/auth/google?json=1'),
+    getGitHubAuthUrl: () => request<{ url: string }>('/auth/github?json=1'),
+    logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),
     me: () => request<{ user: User }>('/auth/me'),
     getProfile: () => request<{ user: User }>('/auth/profile'),
     updateProfile: (data: Partial<User>) =>
@@ -299,14 +307,14 @@ export const api = {
     create: (projectId: number, issueId: number, content: string) =>
       request<{ comment: Comment }>(`/projects/${projectId}/issues/${issueId}/comments`, {
         method: 'POST',
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ body: content, content }),
       }),
     update: (projectId: number, issueId: number, commentId: number, content: string) =>
       request<{ comment: Comment }>(
         `/projects/${projectId}/issues/${issueId}/comments/${commentId}`,
         {
           method: 'PATCH',
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ body: content, content }),
         }
       ),
     delete: (projectId: number, issueId: number, commentId: number) =>

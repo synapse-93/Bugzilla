@@ -11,6 +11,8 @@ interface AuthContextType {
   guestAuth: (credentials: { username: string; password: string }) => Promise<void>
   oauthGoogle: (data: { email: string; username?: string; name?: string; picture?: string }) => Promise<void>
   oauthGitHub: (data: { username: string; email?: string; avatar_url?: string }) => Promise<void>
+  completeOAuthRegistration: (data: { pending_token: string; username: string }) => Promise<void>
+  setSessionToken: (token: string) => Promise<void>
   refreshUser: () => Promise<void>
   updateUser: (data: Partial<User>) => Promise<void>
   logout: () => void
@@ -24,7 +26,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
 
   const refreshUser = async () => {
-    if (!token) return
+    const activeToken = localStorage.getItem('bugzilla_auth_token')
+    if (!activeToken) {
+      setUser(null)
+      return
+    }
     try {
       const { user: fetchedUser } = await api.auth.me()
       setUser(fetchedUser)
@@ -33,6 +39,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('bugzilla_auth_token')
       setToken(null)
       setUser(null)
+    }
+  }
+
+  const setSessionToken = async (newToken: string) => {
+    localStorage.setItem('bugzilla_auth_token', newToken)
+    setToken(newToken)
+    try {
+      const { user: fetchedUser } = await api.auth.me()
+      setUser(fetchedUser)
+    } catch (err) {
+      console.error('Failed to load user with token:', err)
+      localStorage.removeItem('bugzilla_auth_token')
+      setToken(null)
+      setUser(null)
+      throw err
     }
   }
 
@@ -84,12 +105,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(githubUser)
   }
 
+  const completeOAuthRegistration = async (data: { pending_token: string; username: string }) => {
+    const { user: newUser, access_token } = await api.auth.completeOAuthRegistration(data)
+    localStorage.setItem('bugzilla_auth_token', access_token)
+    setToken(access_token)
+    setUser(newUser)
+  }
+
   const updateUser = async (data: Partial<User>) => {
     const res = await api.auth.updateProfile(data)
     setUser(res.user)
   }
 
   const logout = () => {
+    api.auth.logout().catch(() => {})
     localStorage.removeItem('bugzilla_auth_token')
     setToken(null)
     setUser(null)
@@ -106,6 +135,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         guestAuth,
         oauthGoogle,
         oauthGitHub,
+        completeOAuthRegistration,
+        setSessionToken,
         refreshUser,
         updateUser,
         logout,

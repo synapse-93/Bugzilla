@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../api/client'
 import {
@@ -18,16 +18,16 @@ import { toast } from 'sonner'
 type AuthViewMode = 'LOGIN' | 'REGISTER' | 'FORGOT' | 'GUEST' | 'NEW_OAUTH_USER'
 
 interface PendingOAuthData {
+  pending_token: string
   provider: 'GOOGLE' | 'GITHUB'
   email?: string
   username?: string
+  github_username?: string
   name?: string
-  picture?: string
-  avatar_url?: string
 }
 
 export function AuthModal() {
-  const { login, register, guestAuth, oauthGoogle, oauthGitHub } = useAuth()
+  const { login, register, guestAuth, completeOAuthRegistration, setSessionToken } = useAuth()
   const [viewMode, setViewMode] = useState<AuthViewMode>('LOGIN')
 
   // Form states
@@ -44,83 +44,121 @@ export function AuthModal() {
   const [pendingOAuth, setPendingOAuth] = useState<PendingOAuthData | null>(null)
   const [chosenUsername, setChosenUsername] = useState('')
 
+  // Centralized state reset
+  const resetOAuthState = useCallback(() => {
+    setLoading(false)
+    setPendingOAuth(null)
+    setChosenUsername('')
+    setViewMode('LOGIN')
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }, [])
+
+  // Clear loading state on back/forward navigation (bfcache) or window focus
+  useEffect(() => {
+    const handlePageShow = () => {
+      setLoading(false)
+    }
+    const handleFocus = () => {
+      setLoading(false)
+    }
+
+    window.addEventListener('pageshow', handlePageShow)
+    window.addEventListener('focus', handleFocus)
+    return () => {
+      window.removeEventListener('pageshow', handlePageShow)
+      window.removeEventListener('focus', handleFocus)
+    }
+  }, [])
+
+  // Check URL hash for OAuth redirect results on component mount or hash changes
+  useEffect(() => {
+    const processHash = () => {
+      const hash = window.location.hash
+      if (!hash) return
+
+      const hashContent = hash.startsWith('#') ? hash.substring(1) : hash
+      const params = new URLSearchParams(hashContent)
+
+      const authToken = params.get('auth_token')
+      const oauthPending = params.get('oauth_pending')
+      const oauthError = params.get('oauth_error')
+
+      if (authToken) {
+        // Clear hash immediately
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        setLoading(true)
+        setSessionToken(authToken)
+          .then(() => {
+            toast.success('Signed in successfully with OAuth!')
+          })
+          .catch((err: any) => {
+            toast.error(err.message || 'Failed to establish session')
+          })
+          .finally(() => {
+            setLoading(false)
+          })
+        return
+      }
+
+      if (oauthPending) {
+        const provider = (params.get('provider') || 'GOOGLE') as 'GOOGLE' | 'GITHUB'
+        const userEmail = params.get('email') || undefined
+        const ghUsername = params.get('github_username') || undefined
+        const suggested = params.get('suggested') || ghUsername || (userEmail ? userEmail.split('@')[0] : '')
+        const name = params.get('name') || undefined
+
+        // Clear hash from URL immediately
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+
+        setLoading(false)
+        setPendingOAuth({
+          pending_token: oauthPending,
+          provider,
+          email: userEmail,
+          github_username: ghUsername,
+          name,
+        })
+        setChosenUsername(suggested.replace(/[^a-zA-Z0-9_-]/g, '_'))
+        setViewMode('NEW_OAUTH_USER')
+        return
+      }
+
+      if (oauthError) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
+        setLoading(false)
+        setPendingOAuth(null)
+        setViewMode('LOGIN')
+        const decodedError = decodeURIComponent(oauthError)
+        if (decodedError.toLowerCase().includes('denied') || decodedError.toLowerCase().includes('cancel')) {
+          toast.info('Sign-in was canceled.')
+        } else {
+          toast.error(decodedError)
+        }
+      }
+    }
+
+    processHash()
+    window.addEventListener('hashchange', processHash)
+    return () => window.removeEventListener('hashchange', processHash)
+  }, [setSessionToken])
+
   // =========================================================================
   // Google OAuth Real Authorization Flow
   // =========================================================================
   const handleGoogleOAuth = async () => {
     setLoading(true)
     try {
-      const googleClientId =
-        import.meta.env.VITE_GOOGLE_CLIENT_ID ||
-        '1084260193444-bugzilla-oauth.apps.googleusercontent.com'
-      const redirectUri = window.location.origin
-      const googleAuthUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-        googleClientId
-      )}&redirect_uri=${encodeURIComponent(
-        redirectUri
-      )}&response_type=token%20id_token&scope=openid%20email%20profile&prompt=select_account`
-
-      // Open Google's real account chooser / OAuth dialog
-      const popup = window.open(
-        googleAuthUrl,
-        'google_oauth_popup',
-        'width=500,height=600,left=200,top=100,menubar=no,status=no'
-      )
-
-      // Listen for OAuth message or process verified token
-      const handleOAuthIdentity = async (profile: { email: string; name?: string; picture?: string }) => {
-        const cleanEmail = profile.email.trim().toLowerCase()
-        const checkRes = await api.auth.oauthCheck({ email: cleanEmail })
-
-        if (checkRes.exists) {
-          // Existing Bugzilla user: Log in immediately without any extra prompt!
-          await oauthGoogle({
-            email: cleanEmail,
-            name: profile.name,
-            picture: profile.picture,
-          })
-          toast.success(`Welcome back, ${checkRes.username || 'developer'}!`)
-        } else {
-          // New Bugzilla account: Ask ONLY for a chosen username
-          const suggested = cleanEmail.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '_')
-          setPendingOAuth({
-            provider: 'GOOGLE',
-            email: cleanEmail,
-            name: profile.name || suggested,
-            picture: profile.picture || `https://api.dicebear.com/7.x/identicon/svg?seed=${cleanEmail}`,
-          })
-          setChosenUsername(suggested)
-          setViewMode('NEW_OAUTH_USER')
-        }
-      }
-
-      // If popup window is blocked or in local mock testing, securely simulate the provider callback
-      if (!popup || popup.closed) {
-        // Fallback to secure direct provider resolution
-        const verifiedEmail = `user.${Math.random().toString(36).substring(2, 6)}@gmail.com`
-        await handleOAuthIdentity({
-          email: verifiedEmail,
-          name: 'Google Developer',
-          picture: `https://api.dicebear.com/7.x/identicon/svg?seed=${verifiedEmail}`,
-        })
+      const res = await api.auth.getGoogleAuthUrl()
+      if (res.url) {
+        window.location.href = res.url
       } else {
-        // Poll popup closure or message
-        const timer = setInterval(async () => {
-          if (popup.closed) {
-            clearInterval(timer)
-            // Process default verified profile
-            const verifiedEmail = `developer@gmail.com`
-            await handleOAuthIdentity({
-              email: verifiedEmail,
-              name: 'Google Developer',
-              picture: `https://api.dicebear.com/7.x/identicon/svg?seed=${verifiedEmail}`,
-            })
-            setLoading(false)
-          }
-        }, 800)
+        toast.error('Failed to obtain Google authorization URL')
+        setLoading(false)
       }
     } catch (err: any) {
-      toast.error(err.message || 'Google authentication failed')
+      toast.error(err.message || 'Google OAuth is currently unavailable')
       setLoading(false)
     }
   }
@@ -131,67 +169,15 @@ export function AuthModal() {
   const handleGitHubOAuth = async () => {
     setLoading(true)
     try {
-      const githubClientId =
-        import.meta.env.VITE_GITHUB_CLIENT_ID || 'Iv1.bugzilla_oauth_client'
-      const redirectUri = window.location.origin
-      const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(
-        githubClientId
-      )}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=read:user%20user:email`
-
-      // Open GitHub's real authorization dialog
-      const popup = window.open(
-        githubAuthUrl,
-        'github_oauth_popup',
-        'width=500,height=650,left=200,top=100,menubar=no,status=no'
-      )
-
-      const handleGitHubIdentity = async (profile: { username: string; email?: string; avatar_url?: string }) => {
-        const cleanUser = profile.username.trim()
-        const checkRes = await api.auth.oauthCheck({ username: cleanUser, email: profile.email })
-
-        if (checkRes.exists) {
-          // Existing GitHub user: Log in immediately without any extra prompt!
-          await oauthGitHub({
-            username: cleanUser,
-            email: profile.email,
-            avatar_url: profile.avatar_url,
-          })
-          toast.success(`Welcome back, @${cleanUser}!`)
-        } else {
-          // New Bugzilla account: Ask ONLY for a chosen username
-          setPendingOAuth({
-            provider: 'GITHUB',
-            username: cleanUser,
-            email: profile.email || `${cleanUser.toLowerCase()}@users.noreply.github.com`,
-            avatar_url: profile.avatar_url || `https://github.com/${cleanUser}.png`,
-          })
-          setChosenUsername(cleanUser)
-          setViewMode('NEW_OAUTH_USER')
-        }
-      }
-
-      if (!popup || popup.closed) {
-        const ghUser = `dev-${Math.random().toString(36).substring(2, 6)}`
-        await handleGitHubIdentity({
-          username: ghUser,
-          email: `${ghUser}@users.noreply.github.com`,
-          avatar_url: `https://github.com/${ghUser}.png`,
-        })
+      const res = await api.auth.getGitHubAuthUrl()
+      if (res.url) {
+        window.location.href = res.url
       } else {
-        const timer = setInterval(async () => {
-          if (popup.closed) {
-            clearInterval(timer)
-            await handleGitHubIdentity({
-              username: 'octocat',
-              email: 'octocat@github.com',
-              avatar_url: 'https://github.com/octocat.png',
-            })
-            setLoading(false)
-          }
-        }, 800)
+        toast.error('Failed to obtain GitHub authorization URL')
+        setLoading(false)
       }
     } catch (err: any) {
-      toast.error(err.message || 'GitHub authentication failed')
+      toast.error(err.message || 'GitHub OAuth is currently unavailable')
       setLoading(false)
     }
   }
@@ -201,28 +187,35 @@ export function AuthModal() {
   // =========================================================================
   const handleFinishOAuthRegistration = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!chosenUsername.trim() || !pendingOAuth) {
+    const cleanUser = chosenUsername.trim()
+    if (!cleanUser || !pendingOAuth) {
       toast.error('Please enter a username for your Bugzilla account')
+      return
+    }
+
+    if (cleanUser.length < 3 || cleanUser.length > 50) {
+      toast.error('Username must be between 3 and 50 characters')
+      return
+    }
+
+    if (!/^[a-zA-Z0-9_-]+$/.test(cleanUser)) {
+      toast.error('Username can only contain letters, numbers, hyphens, and underscores')
       return
     }
 
     setLoading(true)
     try {
-      if (pendingOAuth.provider === 'GOOGLE' && pendingOAuth.email) {
-        await oauthGoogle({
-          email: pendingOAuth.email,
-          username: chosenUsername.trim(),
-          name: pendingOAuth.name,
-          picture: pendingOAuth.picture,
-        })
-        toast.success(`Account created with Google! Welcome, ${chosenUsername.trim()}.`)
-      } else if (pendingOAuth.provider === 'GITHUB') {
-        await oauthGitHub({
-          username: chosenUsername.trim(),
-          email: pendingOAuth.email,
-          avatar_url: pendingOAuth.avatar_url,
-        })
-        toast.success(`Account created with GitHub! Welcome, @${chosenUsername.trim()}.`)
+      await completeOAuthRegistration({
+        pending_token: pendingOAuth.pending_token,
+        username: cleanUser,
+      })
+      toast.success(
+        `Account created with ${pendingOAuth.provider === 'GOOGLE' ? 'Google' : 'GitHub'}! Welcome, ${cleanUser}.`
+      )
+      setPendingOAuth(null)
+      setChosenUsername('')
+      if (window.location.hash) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search)
       }
     } catch (err: any) {
       toast.error(err.message || 'Failed to complete registration')
@@ -348,7 +341,7 @@ export function AuthModal() {
             {viewMode === 'NEW_OAUTH_USER' &&
               (pendingOAuth?.provider === 'GOOGLE'
                 ? `Verified with Google as ${pendingOAuth.email}`
-                : `Verified with GitHub as @${pendingOAuth?.username}`)}
+                : `Verified with GitHub as @${pendingOAuth?.github_username || pendingOAuth?.username}`)}
           </p>
         </div>
 
@@ -455,7 +448,11 @@ export function AuthModal() {
               <button
                 type="button"
                 className="guest-auth-btn"
-                onClick={() => setViewMode('GUEST')}
+                onClick={() => {
+                  setLoading(false)
+                  setViewMode('GUEST')
+                }}
+                disabled={loading}
               >
                 <FlaskConical size={14} className="text-muted" />
                 <span>Continue as Guest (Testing Sandbox)</span>
@@ -467,7 +464,10 @@ export function AuthModal() {
               <button
                 type="button"
                 className="auth-link"
-                onClick={() => setViewMode('REGISTER')}
+                onClick={() => {
+                  setLoading(false)
+                  setViewMode('REGISTER')
+                }}
               >
                 Create one
               </button>
@@ -574,7 +574,11 @@ export function AuthModal() {
               <button
                 type="button"
                 className="guest-auth-btn"
-                onClick={() => setViewMode('GUEST')}
+                onClick={() => {
+                  setLoading(false)
+                  setViewMode('GUEST')
+                }}
+                disabled={loading}
               >
                 <FlaskConical size={14} className="text-muted" />
                 <span>Create Guest Account (Sandbox Testing)</span>
@@ -586,7 +590,10 @@ export function AuthModal() {
               <button
                 type="button"
                 className="auth-link"
-                onClick={() => setViewMode('LOGIN')}
+                onClick={() => {
+                  setLoading(false)
+                  setViewMode('LOGIN')
+                }}
               >
                 Sign in
               </button>
@@ -614,7 +621,10 @@ export function AuthModal() {
                   type="button"
                   className="btn btn-secondary"
                   style={{ width: '100%', padding: '9px' }}
-                  onClick={() => setViewMode('LOGIN')}
+                  onClick={() => {
+                    setLoading(false)
+                    setViewMode('LOGIN')
+                  }}
                 >
                   Return to Sign In
                 </button>
@@ -649,7 +659,10 @@ export function AuthModal() {
                     type="button"
                     className="auth-link"
                     style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
-                    onClick={() => setViewMode('LOGIN')}
+                    onClick={() => {
+                      setLoading(false)
+                      setViewMode('LOGIN')
+                    }}
                   >
                     ← Return to sign in
                   </button>
@@ -710,7 +723,10 @@ export function AuthModal() {
                 type="button"
                 className="auth-link"
                 style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
-                onClick={() => setViewMode('LOGIN')}
+                onClick={() => {
+                  setLoading(false)
+                  setViewMode('LOGIN')
+                }}
               >
                 ← Return to standard sign in
               </button>
@@ -732,7 +748,7 @@ export function AuthModal() {
                 <div style={{ color: 'var(--text-secondary)', marginTop: '1px' }}>
                   {pendingOAuth?.provider === 'GOOGLE'
                     ? `Google account ${pendingOAuth.email}`
-                    : `GitHub account @${pendingOAuth?.username}`}
+                    : `GitHub account @${pendingOAuth?.github_username || pendingOAuth?.username}`}
                 </div>
               </div>
             </div>
@@ -770,10 +786,7 @@ export function AuthModal() {
                 type="button"
                 className="auth-link"
                 style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
-                onClick={() => {
-                  setPendingOAuth(null)
-                  setViewMode('LOGIN')
-                }}
+                onClick={resetOAuthState}
               >
                 Cancel and return
               </button>

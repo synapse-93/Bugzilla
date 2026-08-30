@@ -37,7 +37,7 @@ def create_comment(project_id: int, issue_id: int):
         return api_error("NOT_FOUND", "Issue not found", 404)
 
     data = request.get_json(silent=True) or {}
-    body = (data.get("body") or "").strip()
+    body = (data.get("body") or data.get("content") or "").strip()
     if not body:
         return api_error("VALIDATION_ERROR", "Comment body cannot be empty", 400)
 
@@ -82,7 +82,7 @@ def update_comment(project_id: int, issue_id: int, comment_id: int):
         return api_error("FORBIDDEN", "Only comment author can edit comment", 403)
 
     data = request.get_json(silent=True) or {}
-    body = (data.get("body") or "").strip()
+    body = (data.get("body") or data.get("content") or "").strip()
     if not body:
         return api_error("VALIDATION_ERROR", "Comment body cannot be empty", 400)
 

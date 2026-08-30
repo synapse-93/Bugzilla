@@ -185,3 +185,151 @@ def test_milestones_and_issue_relationships(client):
     rel_list = client.get(f"/api/projects/{project_id}/issues/{i1_id}/relationships", headers=headers)
     assert rel_list.status_code == 200
     assert len(rel_list.get_json()["relationships"]) == 1
+
+
+def test_real_oauth_and_complete_registration_flow(client, monkeypatch):
+    import os
+    from flask_jwt_extended import create_access_token
+    from datetime import timedelta
+
+    # 1. Test OAuth Initiate endpoints with and without config
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "test-google-client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "test-google-client-secret")
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "test-github-client-id")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "test-github-client-secret")
+
+    g_init = client.get("/api/auth/google?json=1")
+    assert g_init.status_code == 200
+    assert "accounts.google.com" in g_init.get_json()["url"]
+    assert "client_id=test-google-client-id" in g_init.get_json()["url"]
+
+    gh_init = client.get("/api/auth/github?json=1")
+    assert gh_init.status_code == 200
+    assert "github.com/login/oauth/authorize" in gh_init.get_json()["url"]
+    assert "client_id=test-github-client-id" in gh_init.get_json()["url"]
+
+    # 2. Test Google Callback for NEW user (mock exchange_google_code)
+    def mock_google_exchange(code, redirect_uri, client_id, client_secret):
+        return {
+            "email": "new.google.user@example.com",
+            "name": "Google User",
+            "picture": "https://lh3.googleusercontent.com/photo.jpg",
+            "sub": "google-123456",
+        }
+
+    monkeypatch.setattr("app.routes.auth.exchange_google_code", mock_google_exchange)
+
+    g_cb = client.get("/api/auth/google/callback?code=mock-code")
+    assert g_cb.status_code == 302
+    redirect_loc = g_cb.headers["Location"]
+    assert "oauth_pending=" in redirect_loc
+    assert "provider=GOOGLE" in redirect_loc
+
+    # Extract pending token from redirect location
+    import urllib.parse
+    hash_part = redirect_loc.split("#")[1]
+    params = dict(urllib.parse.parse_qsl(hash_part))
+    pending_token = params["oauth_pending"]
+    assert pending_token is not None
+
+    # 3. Complete Registration with chosen unique username
+    comp_res = client.post("/api/auth/oauth/complete-registration", json={
+        "pending_token": pending_token,
+        "username": "googler_dev",
+    })
+    assert comp_res.status_code == 201
+    comp_data = comp_res.get_json()
+    assert comp_data["user"]["username"] == "googler_dev"
+    assert comp_data["user"]["email"] == "new.google.user@example.com"
+    assert comp_data["user"]["auth_provider"] == "GOOGLE"
+    assert comp_data["user"]["is_email_verified"] is True
+    assert "access_token" in comp_data
+
+    # 4. Subsequent Google OAuth Callback for EXISTING user -> signs in immediately
+    g_cb2 = client.get("/api/auth/google/callback?code=mock-code")
+    assert g_cb2.status_code == 302
+    loc2 = g_cb2.headers["Location"]
+    assert "auth_token=" in loc2
+    assert "oauth_pending=" not in loc2
+
+    # 5. Test GitHub Callback for NEW user
+    def mock_github_exchange(code, redirect_uri, client_id, client_secret):
+        return {
+            "login": "octo_developer",
+            "name": "Octo Dev",
+            "email": "octo@github.com",
+            "avatar_url": "https://avatars.githubusercontent.com/u/123",
+            "html_url": "https://github.com/octo_developer",
+        }
+
+    monkeypatch.setattr("app.routes.auth.exchange_github_code", mock_github_exchange)
+
+    gh_cb = client.get("/api/auth/github/callback?code=mock-gh-code")
+    assert gh_cb.status_code == 302
+    gh_loc = gh_cb.headers["Location"]
+    assert "oauth_pending=" in gh_loc
+    assert "provider=GITHUB" in gh_loc
+
+    gh_params = dict(urllib.parse.parse_qsl(gh_loc.split("#")[1]))
+    gh_pending_token = gh_params["oauth_pending"]
+
+    # Duplicate username check
+    dup_res = client.post("/api/auth/oauth/complete-registration", json={
+        "pending_token": gh_pending_token,
+        "username": "googler_dev",  # already used
+    })
+    assert dup_res.status_code == 409
+
+    # Complete GitHub registration with unique username
+    gh_comp = client.post("/api/auth/oauth/complete-registration", json={
+        "pending_token": gh_pending_token,
+        "username": "octo_dev_unique",
+    })
+    assert gh_comp.status_code == 201
+    assert gh_comp.get_json()["user"]["username"] == "octo_dev_unique"
+    assert gh_comp.get_json()["user"]["auth_provider"] == "GITHUB"
+
+    # 6. Test Logout
+    logout_res = client.post("/api/auth/logout")
+    assert logout_res.status_code == 200
+
+
+def test_comment_posting_and_editing_with_body_or_content_fields(client):
+    # Setup owner & project & issue
+    reg = client.post("/api/auth/register", json={"username": "commenter1", "email": "comm1@test.com", "password": "Password123!"})
+    token = reg.get_json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    proj = client.post("/api/projects", json={"name": "Comment Proj", "key": "COMM"}, headers=headers)
+    project_id = proj.get_json()["project"]["id"]
+
+    issue_res = client.post(f"/api/projects/{project_id}/issues", json={"title": "Fix comment bug"}, headers=headers)
+    issue_id = issue_res.get_json()["issue"]["id"]
+
+    # Post comment using {"content": "..."} payload (as sent from frontend)
+    c1 = client.post(f"/api/projects/{project_id}/issues/{issue_id}/comments", json={
+        "content": "This is a comment sent with content field",
+    }, headers=headers)
+    assert c1.status_code == 201
+    assert c1.get_json()["comment"]["body"] == "This is a comment sent with content field"
+    comment1_id = c1.get_json()["comment"]["id"]
+
+    # Post comment using {"body": "..."} payload
+    c2 = client.post(f"/api/projects/{project_id}/issues/{issue_id}/comments", json={
+        "body": "This is a comment sent with body field",
+    }, headers=headers)
+    assert c2.status_code == 201
+    assert c2.get_json()["comment"]["body"] == "This is a comment sent with body field"
+
+    # Update comment using {"content": "..."}
+    u1 = client.patch(f"/api/projects/{project_id}/issues/{issue_id}/comments/{comment1_id}", json={
+        "content": "Updated comment content",
+    }, headers=headers)
+    assert u1.status_code == 200
+    assert u1.get_json()["comment"]["body"] == "Updated comment content"
+
+    # Verify comments list
+    c_list = client.get(f"/api/projects/{project_id}/issues/{issue_id}/comments", headers=headers)
+    assert c_list.status_code == 200
+    assert len(c_list.get_json()["comments"]) == 2
+
