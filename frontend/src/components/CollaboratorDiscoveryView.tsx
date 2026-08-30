@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { PublicProfile, Project, ProjectRole } from '../types'
 import { api } from '../api/client'
+import { useAuth } from '../context/AuthContext'
 import { Search, UserPlus, Globe, Briefcase, Sparkles, Loader2, Mail } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
+import { Card, CardContent } from './ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import {
   Dialog,
@@ -22,6 +23,7 @@ interface CollaboratorDiscoveryViewProps {
 }
 
 export function CollaboratorDiscoveryView({ currentProject, projects }: CollaboratorDiscoveryViewProps) {
+  const { user } = useAuth()
   const [collaborators, setCollaborators] = useState<PublicProfile[]>([])
   const [searchSkill, setSearchSkill] = useState('')
   const [loading, setLoading] = useState(false)
@@ -72,6 +74,23 @@ export function CollaboratorDiscoveryView({ currentProject, projects }: Collabor
     }
   }
 
+  // Self-discovery filtering: exclude currently authenticated user by ID, username, or email
+  const isCurrentUser = (c: PublicProfile) => {
+    if (!user) return false
+    if (user.id !== undefined && c.id !== undefined && String(user.id) === String(c.id)) {
+      return true
+    }
+    if (user.username && c.username && user.username.trim().toLowerCase() === c.username.trim().toLowerCase()) {
+      return true
+    }
+    if (user.email && c.email && user.email.trim().toLowerCase() === c.email.trim().toLowerCase()) {
+      return true
+    }
+    return false
+  }
+
+  const filteredCollaborators = collaborators.filter((c) => !isCurrentUser(c))
+
   return (
     <div className="space-y-6 max-w-[1400px] w-full min-w-0">
       {/* Top Banner */}
@@ -111,19 +130,19 @@ export function CollaboratorDiscoveryView({ currentProject, projects }: Collabor
         <div className="py-16 text-center text-muted-foreground text-[13px]">
           Searching available collaborators...
         </div>
-      ) : collaborators.length === 0 ? (
+      ) : filteredCollaborators.length === 0 ? (
         <Card className="p-12 text-center border-dashed">
           <Globe className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
-          <h3 className="text-sm font-semibold text-foreground">No collaborators found</h3>
+          <h3 className="text-sm font-semibold text-foreground">No other collaborators found</h3>
           <p className="text-[12px] text-muted-foreground max-w-sm mx-auto mt-1">
             {searchSkill
-              ? `No developers found matching skill "${searchSkill}". Try a broader term.`
-              : 'Enable "Open to Collaborate" in your profile to be discoverable!'}
+              ? `No other developers found matching skill "${searchSkill}". Try a broader term.`
+              : 'No other developers are currently open to collaborate. Teammates who enable "Open to Collaborate" will appear here.'}
           </p>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {collaborators.map((c) => {
+          {filteredCollaborators.map((c) => {
             const displayName = c.display_name || c.username
             const initials = displayName.substring(0, 2).toUpperCase()
             const rawSkills = c.skills
@@ -204,7 +223,7 @@ export function CollaboratorDiscoveryView({ currentProject, projects }: Collabor
         </div>
       )}
 
-      {/* Invite Modal */}
+      {/* In-app Invite Modal Dialog */}
       {selectedCollaborator && (
         <Dialog open onOpenChange={(open) => !open && setSelectedCollaborator(null)}>
           <DialogContent className="max-w-md">
@@ -214,7 +233,7 @@ export function CollaboratorDiscoveryView({ currentProject, projects }: Collabor
                 <DialogTitle>Invite @{selectedCollaborator.username}</DialogTitle>
               </div>
               <DialogDescription>
-                Invite this developer to join and contribute to a project.
+                Invite this developer to join and contribute to a project workspace.
               </DialogDescription>
             </DialogHeader>
 

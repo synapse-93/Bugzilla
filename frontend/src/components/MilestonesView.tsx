@@ -1,11 +1,11 @@
 import React, { useState } from 'react'
 import { Milestone, Issue } from '../types'
 import { api } from '../api/client'
-import { Target, Plus, Calendar, CheckCircle2, Clock, Trash2, Loader2 } from 'lucide-react'
+import { Target, Plus, Calendar, CheckCircle2, Clock, Trash2, Loader2, AlertCircle } from 'lucide-react'
 import { formatDate } from '../utils/helpers'
 import { toast } from 'sonner'
 import { Button } from './ui/button'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
+import { Card, CardContent } from './ui/card'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import {
@@ -78,9 +78,12 @@ export function MilestonesView({
       {/* Top Banner */}
       <Card className="border-border/80 bg-card p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-lg font-bold text-foreground tracking-tight">Project Milestones</h2>
+          <div className="flex items-center gap-2">
+            <Target className="h-4 w-4 text-purple-400" />
+            <h2 className="text-lg font-bold text-foreground tracking-tight">Project Milestones</h2>
+          </div>
           <p className="text-[12.5px] text-muted-foreground mt-0.5">
-            Track sprints, version releases, and deliverable completion targets.
+            Group issues into iterations, version releases, and deliverable completion targets.
           </p>
         </div>
         <Button
@@ -97,13 +100,13 @@ export function MilestonesView({
       {milestones.length === 0 ? (
         <Card className="p-12 text-center border-dashed">
           <Target className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
-          <h3 className="text-sm font-semibold text-foreground">No milestones created</h3>
-          <p className="text-[12px] text-muted-foreground max-w-sm mx-auto mt-1 mb-4">
-            Group issues into sprints or releases to measure velocity and milestone health.
+          <h3 className="text-sm font-semibold text-foreground">No milestones created yet</h3>
+          <p className="text-[12px] text-muted-foreground max-w-md mx-auto mt-1 mb-4 leading-relaxed">
+            Milestones allow your team to organize issues into sprints or releases and monitor velocity in real time. Once created, issues can be assigned to milestones directly in the issue editor.
           </p>
           <Button size="sm" onClick={() => setIsCreateModalOpen(true)} className="gap-1 text-[12px]">
             <Plus className="h-3.5 w-3.5" />
-            <span>Create Milestone</span>
+            <span>Create First Milestone</span>
           </Button>
         </Card>
       ) : (
@@ -117,14 +120,62 @@ export function MilestonesView({
             const progress = total > 0 ? Math.round((closed / total) * 100) : (m.progress || 0)
             const isCompleted = progress === 100 || m.status === 'COMPLETED'
 
+            // Due Date Calculation
+            let isOverdue = false
+            let daysRemainingText = ''
+            if (m.due_date && !isCompleted) {
+              const due = new Date(m.due_date).getTime()
+              const now = new Date().getTime()
+              const diffDays = Math.ceil((due - now) / (1000 * 60 * 60 * 24))
+              if (diffDays < 0) {
+                isOverdue = true
+                daysRemainingText = `${Math.abs(diffDays)}d overdue`
+              } else if (diffDays === 0) {
+                daysRemainingText = 'Due today'
+              } else {
+                daysRemainingText = `${diffDays}d remaining`
+              }
+            }
+
             return (
               <Card key={m.id} className="border-border/80 bg-card p-4 space-y-3 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <Target className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
-                      <h3 className="font-semibold text-[13.5px] text-foreground truncate">{m.name}</h3>
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Target className="h-3.5 w-3.5 text-purple-400 shrink-0" />
+                        <h3 className="font-semibold text-[13.5px] text-foreground truncate">{m.name}</h3>
+                      </div>
+
+                      {/* Status Tag */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {isCompleted ? (
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            Completed
+                          </span>
+                        ) : isOverdue ? (
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-destructive/15 text-destructive border border-destructive/30 flex items-center gap-1">
+                            <AlertCircle className="h-2.5 w-2.5" />
+                            {daysRemainingText}
+                          </span>
+                        ) : total > 0 ? (
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
+                            In Progress
+                          </span>
+                        ) : (
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border">
+                            Planned
+                          </span>
+                        )}
+
+                        {m.due_date && !isOverdue && daysRemainingText && (
+                          <span className="text-[10px] font-mono text-muted-foreground">
+                            {daysRemainingText}
+                          </span>
+                        )}
+                      </div>
                     </div>
+
                     <Button
                       variant="ghost"
                       size="iconSm"
@@ -137,14 +188,14 @@ export function MilestonesView({
                   </div>
 
                   {m.description && (
-                    <p className="text-[12px] text-muted-foreground line-clamp-2">{m.description}</p>
+                    <p className="text-[12px] text-muted-foreground line-clamp-2 leading-relaxed">{m.description}</p>
                   )}
                 </div>
 
                 <div className="space-y-2 pt-2 border-t border-border/50">
                   <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground font-medium">Progress</span>
-                    <span className="font-mono font-semibold text-foreground">{closed}/{total} issues ({progress}%)</span>
+                    <span className="text-muted-foreground font-medium">Issue Progress</span>
+                    <span className="font-mono font-semibold text-foreground">{closed}/{total} resolved ({progress}%)</span>
                   </div>
 
                   <div className="w-full h-1.5 bg-muted/60 rounded-full overflow-hidden">
@@ -160,7 +211,7 @@ export function MilestonesView({
                   {m.due_date && (
                     <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground pt-1">
                       <Calendar className="h-3 w-3" />
-                      <span>Due {formatDate(m.due_date)}</span>
+                      <span>Target: {formatDate(m.due_date)}</span>
                     </div>
                   )}
                 </div>
@@ -180,7 +231,7 @@ export function MilestonesView({
                 <DialogTitle>New Milestone</DialogTitle>
               </div>
               <DialogDescription>
-                Define a sprint iteration or release target.
+                Define a sprint iteration, release target, or project phase.
               </DialogDescription>
             </DialogHeader>
 
@@ -200,7 +251,7 @@ export function MilestonesView({
               <div className="space-y-1">
                 <label className="text-[12px] font-medium text-foreground">Description</label>
                 <Textarea
-                  placeholder="Goals and scope for this milestone..."
+                  placeholder="Goals, target scope, and deliverables for this milestone..."
                   rows={3}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}

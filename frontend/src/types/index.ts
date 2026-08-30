@@ -49,6 +49,7 @@ export interface User {
 export interface PublicProfile {
   id: number
   username: string
+  email?: string | null
   display_name?: string | null
   auth_provider: AuthProviderType
   avatar_url?: string | null

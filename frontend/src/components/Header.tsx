@@ -125,10 +125,14 @@ export function Header({
           size="sm"
           onClick={onOpenCreateIssue}
           disabled={!currentProject}
-          className="gap-1.5 h-7 text-[12px] font-medium"
+          className="gap-1.5 h-7.5 px-2.5 text-[12px] font-medium"
+          title="Create New Issue (C)"
         >
           <Plus className="h-3.5 w-3.5" />
           <span className="hidden xs:inline">New Issue</span>
+          <kbd className="hidden md:inline-flex ml-0.5 pointer-events-none h-3.5 items-center px-1 font-mono text-[9px] font-normal bg-primary-foreground/20 text-primary-foreground rounded">
+            C
+          </kbd>
         </Button>
       </div>
     </header>

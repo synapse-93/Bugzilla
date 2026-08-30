@@ -65,6 +65,9 @@ function KaizenApp() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault()
         setIsCommandPaletteOpen((prev) => !prev)
+      } else if (e.key === '/' && !isInput && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault()
+        setIsCommandPaletteOpen(true)
       } else if (e.key.toLowerCase() === 'c' && !isInput && !e.metaKey && !e.ctrlKey && currentProject) {
         e.preventDefault()
         setIsCreateIssueOpen(true)
@@ -430,6 +433,7 @@ function KaizenApp() {
         onChangeView={(view) => setActiveView(view)}
         onOpenCreateIssue={() => setIsCreateIssueOpen(true)}
         onOpenCreateProject={() => setIsCreateProjectOpen(true)}
+        onOpenInvitations={() => setIsInvitationsOpen(true)}
       />
 
       {/* Notifications Drawer */}

@@ -10,6 +10,8 @@ import {
   Loader2,
   CheckCircle2,
   ChevronLeft,
+  Eye,
+  EyeOff,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { StackedLogo } from './StackedLogo'
@@ -35,6 +37,7 @@ export function AuthModal() {
 
   const [authMode, setAuthMode] = useState<AuthMode>('LOGIN')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const [oauthInitiating, setOauthInitiating] = useState<'google' | 'github' | null>(null)
 
   // Form Fields
@@ -506,14 +509,22 @@ export function AuthModal() {
                         <div className="relative">
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <Input
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="••••••••"
-                            className="pl-8 text-[12.5px] rounded-sm"
+                            className="pl-8 pr-8 text-[12.5px] rounded-sm font-mono"
                             required
                             autoComplete="current-password"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                          >
+                            {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
                         </div>
                       </div>
 
@@ -535,7 +546,7 @@ export function AuthModal() {
                             value={username}
                             onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
                             placeholder="username"
-                            className="pl-8 text-[12.5px] rounded-sm"
+                            className="pl-8 text-[12.5px] rounded-sm font-mono"
                             required
                             minLength={3}
                           />
@@ -562,14 +573,22 @@ export function AuthModal() {
                         <div className="relative">
                           <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <Input
-                            type="password"
+                            type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder="At least 8 characters"
-                            className="pl-8 text-[12.5px] rounded-sm"
+                            className="pl-8 pr-8 text-[12.5px] rounded-sm font-mono"
                             required
                             minLength={8}
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-0.5"
+                          >
+                            {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                          </button>
                         </div>
                       </div>
 

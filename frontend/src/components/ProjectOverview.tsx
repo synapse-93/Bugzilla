@@ -135,7 +135,15 @@ export function ProjectOverview({
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onChangeView('issues')}
+              className="gap-1.5 text-[12px] h-8"
+            >
+              <span>View Issues</span>
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -146,9 +154,18 @@ export function ProjectOverview({
               <span>Kanban</span>
             </Button>
             <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onChangeView('milestones')}
+              className="gap-1.5 text-[12px] h-8"
+            >
+              <Target className="h-3.5 w-3.5" />
+              <span>Milestones</span>
+            </Button>
+            <Button
               size="sm"
               onClick={onOpenCreateIssue}
-              className="gap-1.5 text-[12px] h-8"
+              className="gap-1.5 text-[12px] h-8 font-medium"
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New Issue</span>

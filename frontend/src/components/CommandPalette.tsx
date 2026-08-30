@@ -37,6 +37,7 @@ interface CommandPaletteProps {
   onChangeView: (view: ActiveView) => void
   onOpenCreateIssue: () => void
   onOpenCreateProject: () => void
+  onOpenInvitations?: () => void
 }
 
 export function CommandPalette({
@@ -51,6 +52,7 @@ export function CommandPalette({
   onChangeView,
   onOpenCreateIssue,
   onOpenCreateProject,
+  onOpenInvitations,
 }: CommandPaletteProps) {
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -153,6 +155,17 @@ export function CommandPalette({
             <Sparkles className="mr-2 h-4 w-4 text-emerald-400" />
             <span>Find Collaborators</span>
           </CommandItem>
+          {onOpenInvitations && (
+            <CommandItem
+              onSelect={() => {
+                onOpenInvitations()
+                onClose()
+              }}
+            >
+              <Users className="mr-2 h-4 w-4 text-sky-400" />
+              <span>Project Invitations</span>
+            </CommandItem>
+          )}
           <CommandItem
             onSelect={() => {
               onChangeView('settings')

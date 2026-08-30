@@ -270,6 +270,9 @@ export function IssueList({
               {preset.label}
             </button>
           ))}
+          <div className="ml-auto text-[11px] font-mono text-muted-foreground">
+            {issues.length} {issues.length === 1 ? 'issue' : 'issues'}
+          </div>
         </div>
       </Card>
 
@@ -329,11 +332,30 @@ export function IssueList({
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
-                    Loading issues...
-                  </td>
-                </tr>
+                <>
+                  {[1, 2, 3, 4, 5].map((idx) => (
+                    <tr key={idx} className="border-b border-border/40 animate-pulse">
+                      <td className="px-3.5 py-3">
+                        <div className="h-3.5 w-16 bg-muted/60 rounded" />
+                      </td>
+                      <td className="px-3.5 py-3">
+                        <div className="h-3.5 w-48 bg-muted/60 rounded" />
+                      </td>
+                      <td className="px-3.5 py-3">
+                        <div className="h-4 w-20 bg-muted/60 rounded" />
+                      </td>
+                      <td className="px-3.5 py-3">
+                        <div className="h-4 w-16 bg-muted/60 rounded" />
+                      </td>
+                      <td className="px-3.5 py-3">
+                        <div className="h-4 w-24 bg-muted/60 rounded" />
+                      </td>
+                      <td className="px-3.5 py-3 text-right">
+                        <div className="h-3.5 w-12 bg-muted/60 rounded ml-auto" />
+                      </td>
+                    </tr>
+                  ))}
+                </>
               ) : issues.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="py-12 text-center">
