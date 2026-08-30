@@ -223,7 +223,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
               </div>
               <h4 className="text-[14px] font-semibold text-foreground">OAuth 2.0 & JWT Security</h4>
               <p className="text-[12.5px] text-muted-foreground leading-relaxed">
-                Google & GitHub OAuth integration alongside Argon2-hashed password authentication with isolated guest sandboxes.
+                GitHub OAuth integration alongside Argon2-hashed password authentication with isolated guest sandboxes.
               </p>
             </div>
           </div>

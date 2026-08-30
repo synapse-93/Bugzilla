@@ -256,9 +256,17 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
     handleRefreshActivities()
   }
 
+  const handleSelectProject = (proj: Project) => {
+    setCurrentProject(proj)
+    setSelectedIssue(null)
+    setFilters({})
+  }
+
   const handleProjectCreated = (newProj: Project) => {
     setProjects([...projects, newProj])
     setCurrentProject(newProj)
+    setSelectedIssue(null)
+    setFilters({})
     setActiveView('overview')
   }
 
@@ -272,6 +280,8 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
     const remaining = projects.filter((p) => p.id !== currentProject.id)
     setProjects(remaining)
     setCurrentProject(remaining.length > 0 ? remaining[0] : null)
+    setSelectedIssue(null)
+    setFilters({})
     setActiveView('overview')
   }
 
@@ -289,7 +299,7 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
       <Sidebar
         projects={projects}
         currentProject={currentProject}
-        onSelectProject={(proj) => setCurrentProject(proj)}
+        onSelectProject={handleSelectProject}
         onOpenCreateProject={() => setIsCreateProjectOpen(true)}
         activeView={activeView}
         onChangeView={(view) => setActiveView(view)}
@@ -307,7 +317,7 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
             projects={projects}
             currentProject={currentProject}
             onSelectProject={(proj) => {
-              setCurrentProject(proj)
+              handleSelectProject(proj)
               setIsMobileMenuOpen(false)
             }}
             onOpenCreateProject={() => {
@@ -441,7 +451,7 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
         currentProject={currentProject}
         issues={issues}
         members={members}
-        onSelectProject={(proj) => setCurrentProject(proj)}
+        onSelectProject={handleSelectProject}
         onSelectIssue={(issue) => setSelectedIssue(issue)}
         onChangeView={(view) => setActiveView(view)}
         onOpenCreateIssue={() => setIsCreateIssueOpen(true)}

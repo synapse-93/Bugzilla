@@ -59,6 +59,11 @@ export function ProjectSettingsView({
   const [description, setDescription] = useState(project.description || '')
   const [savingGeneral, setSavingGeneral] = useState(false)
 
+  React.useEffect(() => {
+    setName(project.name)
+    setDescription(project.description || '')
+  }, [project.id, project.name, project.description])
+
   // Add Member Modal states
   const [isAddMemberOpen, setIsAddMemberOpen] = useState(false)
   const [memberIdentifier, setMemberIdentifier] = useState('')

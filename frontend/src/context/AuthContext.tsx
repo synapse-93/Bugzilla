@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { User } from '../types'
-import { api } from '../api/client'
+import { api, setUnauthorizedHandler } from '../api/client'
 
 interface AuthContextType {
   user: User | null
@@ -9,7 +9,6 @@ interface AuthContextType {
   login: (credentials: { email?: string; username?: string; password: string }) => Promise<void>
   register: (credentials: { username: string; email: string; password: string }) => Promise<void>
   guestAuth: (credentials: { username: string; password: string }) => Promise<void>
-  oauthGoogle: (data: { email: string; username?: string; name?: string; picture?: string }) => Promise<void>
   oauthGitHub: (data: { username: string; email?: string; avatar_url?: string }) => Promise<void>
   completeOAuthRegistration: (data: { pending_token: string; username: string }) => Promise<void>
   setSessionToken: (token: string) => Promise<void>
@@ -58,6 +57,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   useEffect(() => {
+    setUnauthorizedHandler(() => {
+      localStorage.removeItem('bugzilla_auth_token')
+      try {
+        sessionStorage.clear()
+      } catch (_) {}
+      setToken(null)
+      setUser(null)
+    })
+    return () => setUnauthorizedHandler(null)
+  }, [])
+
+  useEffect(() => {
     async function loadUser() {
       if (!token) {
         setIsLoading(false)
@@ -91,13 +102,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('bugzilla_auth_token', access_token)
     setToken(access_token)
     setUser(guestUser)
-  }
-
-  const oauthGoogle = async (data: { email: string; username?: string; name?: string; picture?: string }) => {
-    const { user: googleUser, access_token } = await api.auth.oauthGoogle(data)
-    localStorage.setItem('bugzilla_auth_token', access_token)
-    setToken(access_token)
-    setUser(googleUser)
   }
 
   const oauthGitHub = async (data: { username: string; email?: string; avatar_url?: string }) => {
@@ -138,7 +142,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login,
         register,
         guestAuth,
-        oauthGoogle,
         oauthGitHub,
         completeOAuthRegistration,
         setSessionToken,

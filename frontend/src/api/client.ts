@@ -29,6 +29,12 @@ interface RequestOptions extends RequestInit {
   params?: Record<string, string | number | boolean | undefined>
 }
 
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null) {
+  unauthorizedHandler = handler
+}
+
 async function request<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const token = localStorage.getItem('bugzilla_auth_token')
   const { params, headers, ...customConfig } = options
@@ -73,6 +79,19 @@ async function request<T>(endpoint: string, options: RequestOptions = {}): Promi
   const data = await response.json().catch(() => ({}))
 
   if (!response.ok) {
+    if (
+      response.status === 401 &&
+      !cleanEndpoint.includes('/auth/login') &&
+      !cleanEndpoint.includes('/auth/register') &&
+      !cleanEndpoint.includes('/auth/guest') &&
+      !cleanEndpoint.includes('/auth/forgot-password') &&
+      !cleanEndpoint.includes('/auth/reset-password')
+    ) {
+      if (unauthorizedHandler) {
+        unauthorizedHandler()
+      }
+    }
+
     const errorMsg = data?.error?.message || data?.message || 'An unexpected error occurred'
     const error = new Error(errorMsg) as Error & { code?: string; details?: any; status: number }
     error.code = data?.error?.code
@@ -116,11 +135,6 @@ export const api = {
         method: 'POST',
         body: JSON.stringify({ token }),
       }),
-    oauthGoogle: (data: { email: string; username?: string; name?: string; picture?: string }) =>
-      request<{ user: User; access_token: string }>('/auth/oauth/google', {
-        method: 'POST',
-        body: JSON.stringify(data),
-      }),
     oauthGitHub: (data: { username: string; email?: string; avatar_url?: string }) =>
       request<{ user: User; access_token: string }>('/auth/oauth/github', {
         method: 'POST',
@@ -136,7 +150,6 @@ export const api = {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    getGoogleAuthUrl: () => request<{ url: string }>('/auth/google?json=1'),
     getGitHubAuthUrl: () => request<{ url: string }>('/auth/github?json=1'),
     logout: () => request<{ message: string }>('/auth/logout', { method: 'POST' }),
     me: () => request<{ user: User }>('/auth/me'),
