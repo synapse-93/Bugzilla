@@ -56,18 +56,19 @@ const CAPABILITIES = [
 export function LandingPage({ onOpenAuth }: LandingPageProps) {
   const [heroProgress, setHeroProgress] = useState(0)
   const [activeStage, setActiveStage] = useState(0)
+  const [capabilitiesScrollProgress, setCapabilitiesScrollProgress] = useState(0)
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false)
 
   const capabilitiesRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    // Check reduced motion
+    // Check reduced motion preference
     const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
     setPrefersReducedMotion(mediaQuery.matches)
     const handleMotionChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches)
     mediaQuery.addEventListener('change', handleMotionChange)
 
-    // Scroll listener for hero & capabilities choreography
+    // Passive scroll listener for hero and capabilities choreography
     let ticking = false
     const handleScroll = () => {
       if (!ticking) {
@@ -76,24 +77,17 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
           const heroHeight = Math.max(window.innerHeight * 0.7, 400)
           setHeroProgress(Math.min(1, Math.max(0, scrollY / heroHeight)))
 
-          if (capabilitiesRef.current) {
+          if (capabilitiesRef.current && window.innerWidth >= 1024) {
             const rect = capabilitiesRef.current.getBoundingClientRect()
             const totalDistance = capabilitiesRef.current.offsetHeight - window.innerHeight
             if (totalDistance > 0) {
-              const rawProgress = -rect.top / totalDistance
-              const clamped = Math.max(0, Math.min(1, rawProgress))
+              const topOffset = 56 // 56px sticky header
+              const currentProgress = (topOffset - rect.top) / totalDistance
+              const clamped = Math.max(0, Math.min(1, currentProgress))
+              setCapabilitiesScrollProgress(clamped)
 
-              // Map clamped progress (0 to 1) into 4 discrete stages (0, 1, 2, 3)
-              let stage = 0
-              if (clamped >= 0.75) {
-                stage = 3
-              } else if (clamped >= 0.50) {
-                stage = 2
-              } else if (clamped >= 0.25) {
-                stage = 1
-              } else {
-                stage = 0
-              }
+              // 4 equal divisions: [0, 0.25), [0.25, 0.50), [0.50, 0.75), [0.75, 1.00]
+              const stage = Math.min(3, Math.max(0, Math.floor(clamped * 4)))
               setActiveStage(stage)
             }
           }
@@ -114,14 +108,16 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
   }, [])
 
   const scrollToStage = (stageIndex: number) => {
-    if (!capabilitiesRef.current) return
-    const rect = capabilitiesRef.current.getBoundingClientRect()
-    const scrollTop = window.scrollY + rect.top
-    const totalDistance = capabilitiesRef.current.offsetHeight - window.innerHeight
-    const stageFractions = [0.08, 0.38, 0.68, 0.95]
-    const fraction = stageFractions[stageIndex] ?? (stageIndex / 3)
-    const targetY = scrollTop + fraction * totalDistance
-    window.scrollTo({ top: targetY, behavior: 'smooth' })
+    setActiveStage(stageIndex)
+    if (capabilitiesRef.current && window.innerWidth >= 1024) {
+      const rect = capabilitiesRef.current.getBoundingClientRect()
+      const containerDocTop = window.scrollY + rect.top
+      const totalDistance = capabilitiesRef.current.offsetHeight - window.innerHeight
+      const topOffset = 56
+      const stageProgressFraction = (stageIndex + 0.5) / 4
+      const targetY = containerDocTop - topOffset + stageProgressFraction * totalDistance
+      window.scrollTo({ top: targetY, behavior: 'smooth' })
+    }
   }
 
   // Hero transform styles based on scroll
@@ -129,6 +125,8 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
     ? undefined
     : `translate3d(0, ${-heroProgress * 20}px, 0)`
   const heroSubOpacity = prefersReducedMotion ? 1 : Math.max(0.65, 1 - heroProgress * 0.45)
+
+  const activeCap = CAPABILITIES[activeStage] || CAPABILITIES[0]
 
   return (
     <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 flex flex-col items-center relative overflow-x-hidden">
@@ -288,9 +286,10 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
         {/* SECTION 4: PINNED CONTINUOUS STORYTELLING CAPABILITIES */}
         <section
           ref={capabilitiesRef}
-          className="relative border-t border-border/50 h-[340vh]"
+          className="relative border-t border-border/50 pt-12 lg:pt-0 lg:h-[260vh]"
         >
-          <div className="sticky top-14 h-[calc(100vh-3.5rem)] flex flex-col justify-center w-full overflow-hidden py-4">
+          {/* DESKTOP PINNED STORYTELLING (>= 1024px) */}
+          <div className="hidden lg:flex sticky top-14 h-[calc(100vh-3.5rem)] flex-col justify-center w-full overflow-hidden py-4">
             {/* Stage Header with live telemetry progress rail */}
             <div className="flex items-center justify-between gap-4 mb-6 shrink-0">
               <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
@@ -298,11 +297,11 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
                 <span>02 • System Capabilities</span>
               </div>
               <div className="flex items-center gap-3 font-mono text-[11px]">
-                <span className="text-muted-foreground hidden sm:inline">PROGRESS</span>
-                <div className="w-24 sm:w-28 h-1 bg-muted/60 rounded-full overflow-hidden">
+                <span className="text-muted-foreground">PROGRESS</span>
+                <div className="w-28 h-1 bg-muted/60 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-primary transition-all duration-300 ease-out"
-                    style={{ width: `${Math.round(((activeStage + 1) / 4) * 100)}%` }}
+                    style={{ width: `${Math.round(capabilitiesScrollProgress * 100)}%` }}
                   />
                 </div>
                 <span className="text-primary font-bold">0{activeStage + 1} / 04</span>
@@ -310,12 +309,12 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
             </div>
 
             {/* Two-Column Grid: Visual Anchor & Stage Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 items-center w-full flex-1 min-h-0">
+            <div className="grid grid-cols-12 gap-10 items-center w-full flex-1 min-h-0">
               {/* Left Column: Pinned Dynamic Abstract Geometry & Stage Navigation */}
-              <div className="lg:col-span-5 flex flex-col space-y-3.5">
+              <div className="col-span-5 flex flex-col space-y-4">
                 {/* Dynamic Architectural Visual Module */}
-                <div className="p-4 sm:p-5 rounded-xl border border-border/80 bg-card/60 flex flex-col items-center justify-center min-h-[260px] sm:min-h-[320px] shadow-sm relative overflow-hidden backdrop-blur-sm">
-                  <DynamicCapabilityArt activeStage={activeStage} className="w-full max-w-[300px] sm:max-w-[330px]" />
+                <div className="p-5 rounded-xl border border-border/80 bg-card/60 flex flex-col items-center justify-center min-h-[320px] shadow-sm relative overflow-hidden backdrop-blur-sm">
+                  <DynamicCapabilityArt activeStage={activeStage} className="w-full max-w-[320px]" />
                   <div className="absolute top-3 left-4 font-mono text-[9.5px] text-muted-foreground/70 flex items-center gap-1.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span>STATE // 0{activeStage + 1}.ACTIVE</span>
@@ -326,7 +325,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
                 </div>
 
                 {/* Anchored Navigation Tabs */}
-                <div className="grid grid-cols-4 gap-1.5 sm:gap-2">
+                <div className="grid grid-cols-4 gap-2">
                   {CAPABILITIES.map((cap) => {
                     const isActive = activeStage === cap.id
                     return (
@@ -334,7 +333,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
                         key={cap.id}
                         type="button"
                         onClick={() => scrollToStage(cap.id)}
-                        className={`py-2 px-1.5 sm:px-2 rounded border text-center font-mono text-[10px] transition-all cursor-pointer select-none ${
+                        className={`py-2 px-2 rounded border text-center font-mono text-[10px] transition-all cursor-pointer select-none ${
                           isActive
                             ? 'border-primary bg-primary/15 text-primary font-bold shadow-sm'
                             : 'border-border/60 bg-card/30 text-muted-foreground hover:border-border hover:text-foreground'
@@ -347,51 +346,118 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
                 </div>
               </div>
 
-              {/* Right Column: Progressive Content Cross-Fading */}
-              <div className="lg:col-span-7 relative min-h-[280px] sm:min-h-[340px] flex items-center">
-                {CAPABILITIES.map((cap) => {
-                  const isActive = activeStage === cap.id
-                  return (
-                    <div
-                      key={cap.id}
-                      className={`w-full p-6 sm:p-8 rounded-xl border space-y-4 transition-all duration-500 ease-out ${
-                        isActive
-                          ? 'opacity-100 translate-y-0 scale-100 pointer-events-auto border-primary/40 bg-card/70 shadow-lg relative'
-                          : 'opacity-0 translate-y-6 scale-[0.97] pointer-events-none absolute inset-0'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="font-mono text-[12px] font-semibold text-primary">
-                          {cap.tag}
-                        </span>
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border/40">
-                          {cap.detail}
-                        </span>
+              {/* Right Column: Progressive Active Content Card */}
+              <div className="col-span-7 relative min-h-[340px] flex items-center">
+                <div
+                  key={activeCap.id}
+                  className="w-full p-8 rounded-xl border border-primary/40 bg-card/80 shadow-xl space-y-4 transition-all duration-300 ease-out"
+                >
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span className="font-mono text-[12px] font-semibold text-primary">
+                      {activeCap.tag}
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border/40">
+                      {activeCap.detail}
+                    </span>
+                  </div>
+
+                  <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground leading-tight">
+                    {activeCap.title}
+                  </h3>
+
+                  <p className="text-[14px] sm:text-[15px] text-muted-foreground leading-relaxed">
+                    {activeCap.description}
+                  </p>
+
+                  {/* Technical Feature Chips */}
+                  <div className="grid grid-cols-3 gap-2.5 pt-2">
+                    {activeCap.bullets.map((b, bIdx) => (
+                      <div
+                        key={bIdx}
+                        className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/50 text-[11px] font-mono text-muted-foreground"
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                        <span className="truncate">{b}</span>
                       </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-                      <h3 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground leading-tight">
-                        {cap.title}
-                      </h3>
+          {/* MOBILE / TABLET INTERACTIVE SHOWCASE (< 1024px) */}
+          <div className="block lg:hidden space-y-6">
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
+                <SectionCrosshair />
+                <span>02 • System Capabilities</span>
+              </div>
+              <span className="text-primary font-mono text-[11px] font-bold">0{activeStage + 1} / 04</span>
+            </div>
 
-                      <p className="text-[13.5px] sm:text-[14.5px] text-muted-foreground leading-relaxed">
-                        {cap.description}
-                      </p>
+            {/* Tabs Header */}
+            <div className="grid grid-cols-4 gap-1.5">
+              {CAPABILITIES.map((cap) => {
+                const isActive = activeStage === cap.id
+                return (
+                  <button
+                    key={cap.id}
+                    type="button"
+                    onClick={() => setActiveStage(cap.id)}
+                    className={`py-2 px-1 rounded border text-center font-mono text-[10px] transition-all cursor-pointer ${
+                      isActive
+                        ? 'border-primary bg-primary/15 text-primary font-bold shadow-sm'
+                        : 'border-border/60 bg-card/30 text-muted-foreground hover:border-border hover:text-foreground'
+                    }`}
+                  >
+                    <div className="truncate">{cap.tag.split(' / ')[1]}</div>
+                  </button>
+                )}
+              )}
+            </div>
 
-                      {/* Technical Feature Chips */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
-                        {cap.bullets.map((b, bIdx) => (
-                          <div
-                            key={bIdx}
-                            className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/50 text-[11px] font-mono text-muted-foreground"
-                          >
-                            <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
-                            <span className="truncate">{b}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )
-                })}
+            {/* Visual Module */}
+            <div className="p-4 rounded-xl border border-border/80 bg-card/60 flex flex-col items-center justify-center min-h-[260px] shadow-sm relative overflow-hidden">
+              <DynamicCapabilityArt activeStage={activeStage} className="w-full max-w-[280px]" />
+              <div className="absolute top-2.5 left-3 font-mono text-[9px] text-muted-foreground/70 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span>STATE // 0{activeStage + 1}.ACTIVE</span>
+              </div>
+              <div className="absolute top-2.5 right-3 font-mono text-[9px] text-primary font-semibold">
+                COORD:02.{activeStage + 1}
+              </div>
+            </div>
+
+            {/* Content Card */}
+            <div className="p-5 sm:p-6 rounded-xl border border-primary/40 bg-card/80 shadow-md space-y-3.5">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="font-mono text-[11.5px] font-semibold text-primary">
+                  {activeCap.tag}
+                </span>
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border/40">
+                  {activeCap.detail}
+                </span>
+              </div>
+
+              <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground leading-snug">
+                {activeCap.title}
+              </h3>
+
+              <p className="text-[13.5px] text-muted-foreground leading-relaxed">
+                {activeCap.description}
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                {activeCap.bullets.map((b, bIdx) => (
+                  <div
+                    key={bIdx}
+                    className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/50 text-[11px] font-mono text-muted-foreground"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span className="truncate">{b}</span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
