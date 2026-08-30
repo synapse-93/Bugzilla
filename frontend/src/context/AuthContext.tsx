@@ -63,7 +63,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false)
         return
       }
-      await refreshUser()
+      if (!user) {
+        await refreshUser()
+      }
       setIsLoading(false)
     }
 

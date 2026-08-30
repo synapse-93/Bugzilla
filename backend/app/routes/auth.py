@@ -418,8 +418,10 @@ def auth_google_callback():
 
     user = User.query.filter_by(email=email).first()
     if user:
+        # Populate avatar only if user has not set a custom avatar
         if not user.avatar_url and picture:
             user.avatar_url = picture
+        # Populate display name only if not set
         if not user.display_name and name:
             user.display_name = name
         user.is_email_verified = True
@@ -433,6 +435,7 @@ def auth_google_callback():
         identity="pending_oauth",
         additional_claims={
             "provider": "GOOGLE",
+            "provider_id": str(sub or ""),
             "email": email,
             "name": name or "",
             "picture": picture or "",
@@ -509,24 +512,27 @@ def auth_github_callback():
         return redirect(f"{frontend_url}/#oauth_error=" + urllib.parse.quote(f"GitHub authorization failed: {str(e)}"))
 
     login = (user_info.get("login") or "").strip()
+    github_id = str(user_info.get("id") or "").strip()
     email = (user_info.get("verified_email") or user_info.get("email") or "").strip().lower()
     name = user_info.get("name")
     avatar_url = user_info.get("avatar_url")
-    html_url = user_info.get("html_url") or (f"https://github.com/{login}" if login else None)
+    html_url = f"https://github.com/{login}" if login else None
 
+    # Identify existing user by unique verified GitHub URL or verified email
     user = None
-    if email:
-        user = User.query.filter_by(email=email).first()
-    if not user and html_url:
+    if html_url:
         user = User.query.filter_by(github_url=html_url).first()
-    if not user and login:
-        user = User.query.filter_by(username=login).first()
+    if not user and email:
+        user = User.query.filter_by(email=email).first()
 
     if user:
+        # Populate avatar only if user has not set a custom avatar
         if not user.avatar_url and avatar_url:
             user.avatar_url = avatar_url
+        # Populate display name only if not set
         if not user.display_name and name:
             user.display_name = name
+        # Populate github_url only if not set
         if not user.github_url and html_url:
             user.github_url = html_url
         if email:
@@ -536,11 +542,13 @@ def auth_github_callback():
         access_token = create_access_token(identity=str(user.id))
         return redirect(f"{frontend_url}/#auth_token=" + urllib.parse.quote(access_token))
 
-    # New user: sign temporary pending token for username selection
+    # New user: sign temporary pending token with verified GitHub identity
     pending_token = create_access_token(
         identity="pending_oauth",
         additional_claims={
             "provider": "GITHUB",
+            "provider_id": github_id,
+            "github_id": github_id,
             "github_username": login,
             "email": email or "",
             "name": name or login,
@@ -594,22 +602,34 @@ def complete_oauth_registration():
     if User.query.filter_by(username=username).first():
         return api_error("CONFLICT", "Username is already taken. Please choose another.", 409)
 
+    github_username = (decoded.get("github_username") or "").strip()
     email = (decoded.get("email") or "").strip().lower() or None
     name = decoded.get("name") or username
     avatar_url = decoded.get("avatar_url") or decoded.get("picture") or None
-    github_url = decoded.get("github_url") or None
+
+    # Derive canonical github_url exclusively from verified GitHub username
+    github_url = None
+    if provider == "GITHUB":
+        if github_username:
+            github_url = f"https://github.com/{github_username}"
+        elif decoded.get("github_url"):
+            github_url = decoded.get("github_url")
+
+    # Prevent cross-account collision
+    if github_url and User.query.filter_by(github_url=github_url).first():
+        return api_error("CONFLICT", "An account with this GitHub identity already exists", 409)
 
     if email and User.query.filter_by(email=email).first():
         return api_error("CONFLICT", "An account with this email already exists", 409)
 
     user = User(
         username=username,
-        email=email if email else (f"{username}@github.bugzilla.local" if provider == "GITHUB" else None),
+        email=email if email else (f"{github_username or username}@github.bugzilla.local" if provider == "GITHUB" else None),
         display_name=name,
         avatar_url=avatar_url,
         github_url=github_url,
         auth_provider=provider,
-        is_email_verified=bool(email),
+        is_email_verified=True,
     )
     db.session.add(user)
     db.session.commit()

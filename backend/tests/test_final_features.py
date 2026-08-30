@@ -257,10 +257,11 @@ def test_real_oauth_and_complete_registration_flow(client, monkeypatch):
     # 5. Test GitHub Callback for NEW user
     def mock_github_exchange(code, redirect_uri, client_id, client_secret):
         return {
+            "id": 98765432,
             "login": "octo_developer",
             "name": "Octo Dev",
             "email": "octo@github.com",
-            "avatar_url": "https://avatars.githubusercontent.com/u/123",
+            "avatar_url": "https://avatars.githubusercontent.com/u/98765432",
             "html_url": "https://github.com/octo_developer",
         }
 
@@ -289,10 +290,62 @@ def test_real_oauth_and_complete_registration_flow(client, monkeypatch):
         "username": "octo_dev_unique",
     })
     assert gh_comp.status_code == 201
-    assert gh_comp.get_json()["user"]["username"] == "octo_dev_unique"
-    assert gh_comp.get_json()["user"]["auth_provider"] == "GITHUB"
+    gh_user = gh_comp.get_json()["user"]
+    assert gh_user["username"] == "octo_dev_unique"
+    assert gh_user["auth_provider"] == "GITHUB"
+    assert gh_user["github_url"] == "https://github.com/octo_developer"
+    assert gh_user["avatar_url"] == "https://avatars.githubusercontent.com/u/98765432"
+    gh_token = gh_comp.get_json()["access_token"]
 
-    # 6. Test Dynamic Preview Origin via State
+    # Verify returned access_token is valid and session can query /api/auth/me
+    me_resp = client.get("/api/auth/me", headers={"Authorization": f"Bearer {gh_token}"})
+    assert me_resp.status_code == 200
+    assert me_resp.get_json()["user"]["username"] == "octo_dev_unique"
+
+    # User updates avatar and github_url to custom values
+    up_resp = client.patch("/api/auth/profile", json={
+        "avatar_url": "https://custom.cdn.com/my-custom-avatar.png",
+        "github_url": "https://github.com/custom-github-handle",
+    }, headers={"Authorization": f"Bearer {gh_token}"})
+    assert up_resp.status_code == 200
+
+    # 6. Test Subsequent GitHub login does NOT overwrite existing custom avatar or github_url
+    gh_subsequent = client.get("/api/auth/github/callback?code=mock-gh-code")
+    assert gh_subsequent.status_code == 302
+    
+    # Verify profile preserved
+    me_resp2 = client.get("/api/auth/me", headers={"Authorization": f"Bearer {gh_token}"})
+    assert me_resp2.status_code == 200
+    assert me_resp2.get_json()["user"]["avatar_url"] == "https://custom.cdn.com/my-custom-avatar.png"
+    assert me_resp2.get_json()["user"]["github_url"] == "https://github.com/custom-github-handle"
+
+    # 7. Test Different GitHub account (distinct ID & username) cannot collide with existing account
+    def mock_different_github(code, redirect_uri, client_id, client_secret):
+        return {
+            "id": 11223344,
+            "login": "different_dev",
+            "name": "Different Developer",
+            "email": "different@github.com",
+            "avatar_url": "https://avatars.githubusercontent.com/u/11223344",
+            "html_url": "https://github.com/different_dev",
+        }
+    monkeypatch.setattr("app.routes.auth.exchange_github_code", mock_different_github)
+
+    diff_cb = client.get("/api/auth/github/callback?code=mock-diff-code")
+    assert diff_cb.status_code == 302
+    assert "oauth_pending=" in diff_cb.headers["Location"]
+    diff_params = dict(urllib.parse.parse_qsl(diff_cb.headers["Location"].split("#")[1]))
+    diff_token = diff_params["oauth_pending"]
+
+    # Registering different GitHub user works independently
+    diff_comp = client.post("/api/auth/oauth/complete-registration", json={
+        "pending_token": diff_token,
+        "username": "different_dev_user",
+    })
+    assert diff_comp.status_code == 201
+    assert diff_comp.get_json()["user"]["github_url"] == "https://github.com/different_dev"
+
+    # 8. Test Dynamic Preview Origin via State
     from app.routes.auth import build_oauth_state
     custom_preview = "https://bugzilla-frontend-qav3ksdrb-idealab-2062.vercel.app"
     preview_state = build_oauth_state(custom_preview)
@@ -300,7 +353,7 @@ def test_real_oauth_and_complete_registration_flow(client, monkeypatch):
     assert gh_preview_cb.status_code == 302
     assert gh_preview_cb.headers["Location"].startswith(f"{custom_preview}/#auth_token=")
 
-    # 7. Test Logout
+    # 9. Test Logout
     logout_res = client.post("/api/auth/logout")
     assert logout_res.status_code == 200
 
