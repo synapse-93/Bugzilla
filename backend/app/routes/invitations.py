@@ -1,3 +1,4 @@
+import os
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required
 from app.extensions import db
@@ -76,7 +77,8 @@ def invite_member(project_id: int):
 
     # Send Email Notification if user has email
     if target_user.email:
-        accept_url = f"https://bugzilla-foundation.vercel.app/invitations"
+        frontend_base = os.environ.get("FRONTEND_URL", os.environ.get("FRONTEND_BASE_URL", "https://bugzilla-frontend.vercel.app")).rstrip("/")
+        accept_url = f"{frontend_base}/invitations"
         send_project_invitation_email(
             target_user.email,
             target_user.username,

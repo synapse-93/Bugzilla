@@ -222,6 +222,7 @@ def test_real_oauth_and_complete_registration_flow(client, monkeypatch):
     g_cb = client.get("/api/auth/google/callback?code=mock-code")
     assert g_cb.status_code == 302
     redirect_loc = g_cb.headers["Location"]
+    assert redirect_loc.startswith("https://bugzilla-frontend.vercel.app/#oauth_pending=")
     assert "oauth_pending=" in redirect_loc
     assert "provider=GOOGLE" in redirect_loc
 
@@ -249,6 +250,7 @@ def test_real_oauth_and_complete_registration_flow(client, monkeypatch):
     g_cb2 = client.get("/api/auth/google/callback?code=mock-code")
     assert g_cb2.status_code == 302
     loc2 = g_cb2.headers["Location"]
+    assert loc2.startswith("https://bugzilla-frontend.vercel.app/#auth_token=")
     assert "auth_token=" in loc2
     assert "oauth_pending=" not in loc2
 
@@ -267,6 +269,7 @@ def test_real_oauth_and_complete_registration_flow(client, monkeypatch):
     gh_cb = client.get("/api/auth/github/callback?code=mock-gh-code")
     assert gh_cb.status_code == 302
     gh_loc = gh_cb.headers["Location"]
+    assert gh_loc.startswith("https://bugzilla-frontend.vercel.app/#oauth_pending=")
     assert "oauth_pending=" in gh_loc
     assert "provider=GITHUB" in gh_loc
 
@@ -289,7 +292,15 @@ def test_real_oauth_and_complete_registration_flow(client, monkeypatch):
     assert gh_comp.get_json()["user"]["username"] == "octo_dev_unique"
     assert gh_comp.get_json()["user"]["auth_provider"] == "GITHUB"
 
-    # 6. Test Logout
+    # 6. Test Dynamic Preview Origin via State
+    from app.routes.auth import build_oauth_state
+    custom_preview = "https://bugzilla-frontend-qav3ksdrb-idealab-2062.vercel.app"
+    preview_state = build_oauth_state(custom_preview)
+    gh_preview_cb = client.get(f"/api/auth/github/callback?code=mock-gh-code&state={preview_state}")
+    assert gh_preview_cb.status_code == 302
+    assert gh_preview_cb.headers["Location"].startswith(f"{custom_preview}/#auth_token=")
+
+    # 7. Test Logout
     logout_res = client.post("/api/auth/logout")
     assert logout_res.status_code == 200
 

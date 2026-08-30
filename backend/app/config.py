@@ -76,6 +76,7 @@ class DevelopmentConfigMeta(type):
         if "CORS_ORIGINS" in cls.__dict__:
             return cls.__dict__["CORS_ORIGINS"]
         origins = [
+            "https://bugzilla-frontend.vercel.app",
             "https://bugzilla-foundation.vercel.app",
             "http://localhost:5173",
             "http://localhost:3000",
@@ -138,6 +139,7 @@ class ProductionConfigMeta(type):
         if "CORS_ORIGINS" in cls.__dict__:
             return cls.__dict__["CORS_ORIGINS"]
         origins = [
+            "https://bugzilla-frontend.vercel.app",
             "https://bugzilla-foundation.vercel.app",
             "http://localhost:5173",
             "http://localhost:3000",

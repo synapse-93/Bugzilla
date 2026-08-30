@@ -21,7 +21,32 @@ EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 def get_frontend_url() -> str:
     """Resolve frontend application base URL."""
-    return os.environ.get("FRONTEND_URL", "https://bugzilla-foundation.vercel.app").rstrip("/")
+    return os.environ.get(
+        "FRONTEND_URL",
+        os.environ.get("FRONTEND_BASE_URL", "https://bugzilla-frontend.vercel.app")
+    ).rstrip("/")
+
+
+def build_oauth_state(origin: str | None = None) -> str:
+    """Encode nonce and caller's frontend origin into OAuth state parameter."""
+    payload = {"nonce": secrets.token_urlsafe(16)}
+    if origin and ("vercel.app" in origin or "localhost" in origin or "127.0.0.1" in origin):
+        payload["frontend_url"] = origin.rstrip("/")
+    return urllib.parse.quote(json.dumps(payload))
+
+
+def resolve_frontend_url(state_raw: str | None) -> str:
+    """Resolve destination frontend URL from OAuth state or environment default."""
+    if state_raw:
+        try:
+            payload = json.loads(urllib.parse.unquote(state_raw))
+            if isinstance(payload, dict) and payload.get("frontend_url"):
+                candidate = payload["frontend_url"].strip().rstrip("/")
+                if "vercel.app" in candidate or "localhost" in candidate or "127.0.0.1" in candidate:
+                    return candidate
+        except Exception:
+            pass
+    return get_frontend_url()
 
 
 def get_oauth_redirect_uri(provider: str) -> str:
@@ -334,14 +359,15 @@ def verify_email():
 def auth_google_initiate():
     """Initiate Google OAuth 2.0 authorization code flow."""
     client_id = os.environ.get("GOOGLE_CLIENT_ID", "").strip()
-    frontend_url = get_frontend_url()
+    caller_origin = request.headers.get("Origin") or request.args.get("origin")
+    frontend_url = resolve_frontend_url(build_oauth_state(caller_origin))
     if not client_id:
         if request.args.get("json") == "1" or request.headers.get("Accept") == "application/json":
             return api_error("CONFIG_ERROR", "GOOGLE_CLIENT_ID is not configured", 500)
         return redirect(f"{frontend_url}/#oauth_error=" + urllib.parse.quote("Google OAuth is not configured on the server (missing GOOGLE_CLIENT_ID)"))
 
     redirect_uri = get_oauth_redirect_uri("GOOGLE")
-    state = secrets.token_urlsafe(24)
+    state = build_oauth_state(caller_origin)
     auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth?"
         + urllib.parse.urlencode({
@@ -361,7 +387,7 @@ def auth_google_initiate():
 @auth_bp.route("/auth/google/callback", methods=["GET"])
 def auth_google_callback():
     """Handle Google OAuth callback, exchange code, verify identity, and sign in / onboard user."""
-    frontend_url = get_frontend_url()
+    frontend_url = resolve_frontend_url(request.args.get("state"))
     error = request.args.get("error")
     if error:
         err_desc = request.args.get("error_description") or error
@@ -435,14 +461,15 @@ def auth_google_callback():
 def auth_github_initiate():
     """Initiate GitHub OAuth authorization code flow."""
     client_id = os.environ.get("GITHUB_CLIENT_ID", "").strip()
-    frontend_url = get_frontend_url()
+    caller_origin = request.headers.get("Origin") or request.args.get("origin")
+    frontend_url = resolve_frontend_url(build_oauth_state(caller_origin))
     if not client_id:
         if request.args.get("json") == "1" or request.headers.get("Accept") == "application/json":
             return api_error("CONFIG_ERROR", "GITHUB_CLIENT_ID is not configured", 500)
         return redirect(f"{frontend_url}/#oauth_error=" + urllib.parse.quote("GitHub OAuth is not configured on the server (missing GITHUB_CLIENT_ID)"))
 
     redirect_uri = get_oauth_redirect_uri("GITHUB")
-    state = secrets.token_urlsafe(24)
+    state = build_oauth_state(caller_origin)
     auth_url = (
         "https://github.com/login/oauth/authorize?"
         + urllib.parse.urlencode({
@@ -460,7 +487,7 @@ def auth_github_initiate():
 @auth_bp.route("/auth/github/callback", methods=["GET"])
 def auth_github_callback():
     """Handle GitHub OAuth callback, exchange code, verify identity, and sign in / onboard user."""
-    frontend_url = get_frontend_url()
+    frontend_url = resolve_frontend_url(request.args.get("state"))
     error = request.args.get("error")
     if error:
         err_desc = request.args.get("error_description") or error
