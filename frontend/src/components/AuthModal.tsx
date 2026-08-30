@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { StackedLogo } from './StackedLogo'
-import { TechnicalGeometryHero } from './TechnicalGeometryHero'
+import { LiveIssueIntelligence } from './LiveIssueIntelligence'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Card, CardContent } from './ui/card'
@@ -636,9 +636,9 @@ export function AuthModal() {
           </Card>
         </div>
 
-        {/* Right Column: Signature Procedural Dependency Graph Visual */}
-        <div className="lg:col-span-5 flex items-center justify-center relative w-full overflow-hidden">
-          <TechnicalGeometryHero className="max-w-[320px] sm:max-w-[380px] lg:max-w-[460px]" />
+        {/* Right Column: Live Issue Intelligence System Observability Visual */}
+        <div className="hidden lg:flex lg:col-span-5 items-center justify-center relative w-full overflow-hidden">
+          <LiveIssueIntelligence className="w-full" />
         </div>
 
       </div>
