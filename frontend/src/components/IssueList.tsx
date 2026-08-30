@@ -6,14 +6,10 @@ import {
   Plus,
   CheckSquare,
   X,
-  User as UserIcon,
-  Tag as TagIcon,
-  Filter,
 } from 'lucide-react'
 import { getIssueDisplayIdentifier, formatRelativeTime } from '../utils/helpers'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import { Card, CardContent } from './ui/card'
 import { StatusBadge } from './StatusBadge'
 import { SeverityBadge } from './SeverityBadge'
 import { PriorityBadge } from './PriorityBadge'
@@ -152,7 +148,7 @@ export function IssueList({
   return (
     <div className="space-y-4 max-w-[1400px] w-full min-w-0">
       {/* Search & Filters Card */}
-      <Card className="border-border/80 bg-card p-3 space-y-3">
+      <div className="rounded-lg border border-border/60 bg-card/40 p-3.5 space-y-3">
         <div className="flex items-center gap-2 flex-wrap">
           {/* Search Input */}
           <div className="relative flex-1 min-w-[200px]">
@@ -162,7 +158,7 @@ export function IssueList({
               placeholder="Search issues by title or description..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
-              className="pl-8 h-8 text-[12.5px] bg-background/50"
+              className="pl-8 h-8 text-[12px] bg-background/50 border-border/70"
             />
           </div>
 
@@ -170,7 +166,7 @@ export function IssueList({
           <select
             value={statusFilter}
             onChange={(e) => handleStatusChange(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background/50 px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
+            className="h-8 rounded-md border border-border/70 bg-background/50 px-2.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
           >
             <option value="">All Statuses</option>
             <option value="OPEN">Open</option>
@@ -184,7 +180,7 @@ export function IssueList({
           <select
             value={priorityFilter}
             onChange={(e) => handlePriorityChange(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background/50 px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
+            className="h-8 rounded-md border border-border/70 bg-background/50 px-2.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
           >
             <option value="">All Priorities</option>
             <option value="URGENT">Urgent</option>
@@ -197,7 +193,7 @@ export function IssueList({
           <select
             value={assigneeFilter}
             onChange={(e) => handleAssigneeChange(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background/50 px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
+            className="h-8 rounded-md border border-border/70 bg-background/50 px-2.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
           >
             <option value="">All Assignees</option>
             {members.map((m) => (
@@ -211,7 +207,7 @@ export function IssueList({
           <select
             value={labelFilter}
             onChange={(e) => handleLabelChange(e.target.value)}
-            className="h-8 rounded-md border border-input bg-background/50 px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
+            className="h-8 rounded-md border border-border/70 bg-background/50 px-2.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
           >
             <option value="">All Labels</option>
             {labels.map((l) => (
@@ -238,7 +234,7 @@ export function IssueList({
           <Button
             size="sm"
             onClick={onOpenCreateIssue}
-            className="h-8 text-[12px] gap-1 font-medium ml-auto shrink-0"
+            className="h-8 text-[12px] gap-1.5 font-medium ml-auto shrink-0 shadow-xs"
           >
             <Plus className="h-3.5 w-3.5" />
             <span>New Issue</span>
@@ -246,8 +242,8 @@ export function IssueList({
         </div>
 
         {/* Filter Presets Row */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border/40">
-          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
+        <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border/40">
+          <span className="text-[9.5px] font-mono font-semibold uppercase tracking-wider text-muted-foreground/70 mr-1">
             Presets:
           </span>
           {[
@@ -261,27 +257,27 @@ export function IssueList({
               type="button"
               onClick={() => handleSavedFilterSelect(preset.key)}
               className={cn(
-                'px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                'px-2.5 py-0.5 rounded-md text-[11px] font-medium transition-all cursor-pointer border',
                 activeSavedFilter === preset.key
-                  ? 'bg-primary text-primary-foreground shadow-xs'
-                  : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50'
+                  ? 'bg-primary/15 text-primary border-primary/30 shadow-xs'
+                  : 'bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground border-border/40'
               )}
             >
               {preset.label}
             </button>
           ))}
-          <div className="ml-auto text-[11px] font-mono text-muted-foreground">
+          <div className="ml-auto text-[10.5px] font-mono text-muted-foreground/70">
             {issues.length} {issues.length === 1 ? 'issue' : 'issues'}
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* Issues Table Container */}
-      <Card className="border-border/80 bg-card overflow-hidden">
+      <div className="rounded-lg border border-border/60 bg-card/40 overflow-hidden">
         <div className="w-full overflow-x-auto">
-          <table className="w-full min-w-[700px] text-[12.5px] border-collapse text-left">
+          <table className="w-full min-w-[700px] text-[12px] border-collapse text-left">
             <thead>
-              <tr className="border-b border-border bg-muted/30 text-muted-foreground font-medium text-[11px] uppercase tracking-wider select-none">
+              <tr className="border-b border-border/60 bg-card/60 text-muted-foreground font-medium text-[10px] font-mono uppercase tracking-wider select-none">
                 <th
                   onClick={() => handleSortChange('issue_number')}
                   className="px-3.5 py-2.5 w-24 cursor-pointer hover:text-foreground transition-colors"
@@ -334,24 +330,24 @@ export function IssueList({
               {loading ? (
                 <>
                   {[1, 2, 3, 4, 5].map((idx) => (
-                    <tr key={idx} className="border-b border-border/40 animate-pulse">
+                    <tr key={idx} className="border-b border-border/30 animate-pulse">
                       <td className="px-3.5 py-3">
-                        <div className="h-3.5 w-16 bg-muted/60 rounded" />
+                        <div className="h-3.5 w-16 bg-muted/50 rounded" />
                       </td>
                       <td className="px-3.5 py-3">
-                        <div className="h-3.5 w-48 bg-muted/60 rounded" />
+                        <div className="h-3.5 w-48 bg-muted/50 rounded" />
                       </td>
                       <td className="px-3.5 py-3">
-                        <div className="h-4 w-20 bg-muted/60 rounded" />
+                        <div className="h-4 w-20 bg-muted/50 rounded" />
                       </td>
                       <td className="px-3.5 py-3">
-                        <div className="h-4 w-16 bg-muted/60 rounded" />
+                        <div className="h-4 w-16 bg-muted/50 rounded" />
                       </td>
                       <td className="px-3.5 py-3">
-                        <div className="h-4 w-24 bg-muted/60 rounded" />
+                        <div className="h-4 w-24 bg-muted/50 rounded" />
                       </td>
                       <td className="px-3.5 py-3 text-right">
-                        <div className="h-3.5 w-12 bg-muted/60 rounded ml-auto" />
+                        <div className="h-3.5 w-12 bg-muted/50 rounded ml-auto" />
                       </td>
                     </tr>
                   ))}
@@ -360,9 +356,9 @@ export function IssueList({
                 <tr>
                   <td colSpan={6} className="py-12 text-center">
                     <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-2">
-                      <CheckSquare className="h-8 w-8 text-muted-foreground/60 mb-1" />
-                      <p className="text-[13px] font-semibold text-foreground">No issues found</p>
-                      <p className="text-[11.5px] text-muted-foreground">
+                      <CheckSquare className="h-7 w-7 text-muted-foreground/50 mb-1" />
+                      <p className="text-[12.5px] font-medium text-foreground">No issues found</p>
+                      <p className="text-[11px] text-muted-foreground">
                         {hasActiveFilters
                           ? 'No issues match the active filter criteria. Try resetting filters.'
                           : 'Get started by creating your first issue in this project.'}
@@ -385,10 +381,10 @@ export function IssueList({
                   <tr
                     key={issue.id}
                     onClick={() => onSelectIssue(issue)}
-                    className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer group"
+                    className="border-b border-border/40 hover:bg-muted/25 transition-colors cursor-pointer group"
                   >
                     {/* Identifier */}
-                    <td className="px-3.5 py-2.5 font-mono text-[11px] font-medium text-primary">
+                    <td className="px-3.5 py-2.5 font-mono text-[10.5px] font-medium text-primary">
                       {getIssueDisplayIdentifier(issue.identifier)}
                     </td>
 
@@ -404,18 +400,18 @@ export function IssueList({
                             {issue.labels.slice(0, 3).map((lbl) => (
                               <span
                                 key={lbl.id}
-                                className="px-1.5 py-0.2 rounded text-[10px] font-medium border"
+                                className="px-1.5 py-0.2 rounded text-[9.5px] font-mono font-medium border"
                                 style={{
                                   backgroundColor: `${lbl.color}15`,
                                   color: lbl.color,
-                                  borderColor: `${lbl.color}40`,
+                                  borderColor: `${lbl.color}35`,
                                 }}
                               >
                                 {lbl.name}
                               </span>
                             ))}
                             {issue.labels.length > 3 && (
-                              <span className="text-[10px] text-muted-foreground font-mono">
+                              <span className="text-[9.5px] text-muted-foreground font-mono">
                                 +{issue.labels.length - 3}
                               </span>
                             )}
@@ -441,11 +437,11 @@ export function IssueList({
                     <td className="px-3.5 py-2.5">
                       {issue.assignee ? (
                         <div className="flex items-center gap-1.5">
-                          <Avatar className="h-5 w-5">
+                          <Avatar className="h-4.5 w-4.5 border border-border/60">
                             {issue.assignee.avatar_url && (
                               <AvatarImage src={issue.assignee.avatar_url} alt={issue.assignee.username} />
                             )}
-                            <AvatarFallback className="text-[9px] font-bold bg-primary/20 text-primary">
+                            <AvatarFallback className="text-[8.5px] font-mono font-semibold bg-primary/15 text-primary">
                               {issue.assignee.username.substring(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
@@ -454,12 +450,12 @@ export function IssueList({
                           </span>
                         </div>
                       ) : (
-                        <span className="text-[11.5px] text-muted-foreground">Unassigned</span>
+                        <span className="text-[11px] font-mono text-muted-foreground/70">Unassigned</span>
                       )}
                     </td>
 
                     {/* Updated */}
-                    <td className="px-3.5 py-2.5 text-right font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                    <td className="px-3.5 py-2.5 text-right font-mono text-[10.5px] text-muted-foreground/70 whitespace-nowrap">
                       {formatRelativeTime(issue.updated_at || issue.created_at)}
                     </td>
                   </tr>
@@ -468,7 +464,8 @@ export function IssueList({
             </tbody>
           </table>
         </div>
-      </Card>
+      </div>
     </div>
   )
 }
+

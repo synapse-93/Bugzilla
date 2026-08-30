@@ -1,11 +1,10 @@
 import React, { useState } from 'react'
 import { Milestone, Issue } from '../types'
 import { api } from '../api/client'
-import { Target, Plus, Calendar, CheckCircle2, Clock, Trash2, Loader2, AlertCircle } from 'lucide-react'
+import { Target, Plus, Calendar, Trash2, Loader2, AlertCircle } from 'lucide-react'
 import { formatDate } from '../utils/helpers'
 import { toast } from 'sonner'
 import { Button } from './ui/button'
-import { Card, CardContent } from './ui/card'
 import { Input } from './ui/input'
 import { Textarea } from './ui/textarea'
 import {
@@ -16,7 +15,6 @@ import {
   DialogDescription,
   DialogFooter,
 } from './ui/dialog'
-import { cn } from '@/lib/utils'
 
 interface MilestonesViewProps {
   projectId: number
@@ -74,41 +72,41 @@ export function MilestonesView({
   }
 
   return (
-    <div className="space-y-6 max-w-[1400px] w-full min-w-0">
+    <div className="space-y-5 max-w-[1400px] w-full min-w-0">
       {/* Top Banner */}
-      <Card className="border-border/80 bg-card p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="rounded-lg border border-border/60 bg-card/40 p-4 md:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <Target className="h-4 w-4 text-purple-400" />
             <h2 className="text-lg font-bold text-foreground tracking-tight">Project Milestones</h2>
           </div>
-          <p className="text-[12.5px] text-muted-foreground mt-0.5">
-            Group issues into iterations, version releases, and deliverable completion targets.
+          <p className="text-[12px] text-muted-foreground mt-0.5">
+            Group issues into iterations, version releases, and deliverable targets.
           </p>
         </div>
         <Button
           size="sm"
           onClick={() => setIsCreateModalOpen(true)}
-          className="gap-1.5 text-[12px] h-8 shrink-0"
+          className="gap-1.5 text-[12px] h-8 shrink-0 shadow-xs"
         >
           <Plus className="h-3.5 w-3.5" />
           <span>New Milestone</span>
         </Button>
-      </Card>
+      </div>
 
       {/* Grid of Milestones */}
       {milestones.length === 0 ? (
-        <Card className="p-12 text-center border-dashed">
-          <Target className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
+        <div className="rounded-lg border border-dashed border-border/60 bg-card/20 p-12 text-center">
+          <Target className="h-8 w-8 text-muted-foreground/50 mx-auto mb-2" />
           <h3 className="text-sm font-semibold text-foreground">No milestones created yet</h3>
           <p className="text-[12px] text-muted-foreground max-w-md mx-auto mt-1 mb-4 leading-relaxed">
-            Milestones allow your team to organize issues into sprints or releases and monitor velocity in real time. Once created, issues can be assigned to milestones directly in the issue editor.
+            Milestones allow your team to organize issues into sprints or releases and monitor velocity in real time.
           </p>
-          <Button size="sm" onClick={() => setIsCreateModalOpen(true)} className="gap-1 text-[12px]">
+          <Button size="sm" onClick={() => setIsCreateModalOpen(true)} className="gap-1.5 text-[12px]">
             <Plus className="h-3.5 w-3.5" />
             <span>Create First Milestone</span>
           </Button>
-        </Card>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {milestones.map((m) => {
@@ -138,32 +136,32 @@ export function MilestonesView({
             }
 
             return (
-              <Card key={m.id} className="border-border/80 bg-card p-4 space-y-3 flex flex-col justify-between">
+              <div key={m.id} className="rounded-lg border border-border/60 bg-card/40 p-4 space-y-3 flex flex-col justify-between">
                 <div className="space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <Target className="h-3.5 w-3.5 text-purple-400 shrink-0" />
-                        <h3 className="font-semibold text-[13.5px] text-foreground truncate">{m.name}</h3>
+                        <h3 className="font-semibold text-[13px] text-foreground truncate">{m.name}</h3>
                       </div>
 
                       {/* Status Tag */}
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {isCompleted ? (
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                          <span className="px-1.5 py-0.2 rounded text-[9.5px] font-mono font-medium bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                             Completed
                           </span>
                         ) : isOverdue ? (
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-destructive/15 text-destructive border border-destructive/30 flex items-center gap-1">
+                          <span className="px-1.5 py-0.2 rounded text-[9.5px] font-mono font-medium bg-red-500/15 text-red-400 border border-red-500/30 flex items-center gap-1">
                             <AlertCircle className="h-2.5 w-2.5" />
                             {daysRemainingText}
                           </span>
                         ) : total > 0 ? (
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-primary/15 text-primary border border-primary/30">
+                          <span className="px-1.5 py-0.2 rounded text-[9.5px] font-mono font-medium bg-primary/15 text-primary border border-primary/30">
                             In Progress
                           </span>
                         ) : (
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border">
+                          <span className="px-1.5 py-0.2 rounded text-[9.5px] font-mono font-medium bg-muted text-muted-foreground border border-border/40">
                             Planned
                           </span>
                         )}
@@ -180,110 +178,120 @@ export function MilestonesView({
                       variant="ghost"
                       size="iconSm"
                       onClick={() => handleDelete(m.id)}
-                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-6 w-6 shrink-0"
-                      title="Delete milestone"
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 h-6 w-6"
+                      title="Delete Milestone"
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
 
                   {m.description && (
-                    <p className="text-[12px] text-muted-foreground line-clamp-2 leading-relaxed">{m.description}</p>
+                    <p className="text-[11.5px] text-muted-foreground line-clamp-2">
+                      {m.description}
+                    </p>
                   )}
                 </div>
 
-                <div className="space-y-2 pt-2 border-t border-border/50">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-muted-foreground font-medium">Issue Progress</span>
-                    <span className="font-mono font-semibold text-foreground">{closed}/{total} resolved ({progress}%)</span>
+                {/* Progress Bar */}
+                <div className="space-y-1.5 pt-2 border-t border-border/40">
+                  <div className="flex items-center justify-between text-[11px] font-mono">
+                    <span className="text-muted-foreground">{closed}/{total} issues</span>
+                    <span className="font-semibold text-foreground">{progress}%</span>
                   </div>
-
-                  <div className="w-full h-1.5 bg-muted/60 rounded-full overflow-hidden">
+                  <div className="w-full h-1 bg-muted/60 rounded-full overflow-hidden">
                     <div
-                      className={cn(
-                        'h-full rounded-full transition-all duration-300',
-                        isCompleted ? 'bg-emerald-500' : 'bg-primary'
-                      )}
+                      className="h-full bg-primary rounded-full transition-all duration-300"
                       style={{ width: `${progress}%` }}
                     />
                   </div>
 
                   {m.due_date && (
-                    <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground pt-1">
+                    <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground pt-1">
                       <Calendar className="h-3 w-3" />
-                      <span>Target: {formatDate(m.due_date)}</span>
+                      <span>Due {formatDate(m.due_date)}</span>
                     </div>
                   )}
                 </div>
-              </Card>
+              </div>
             )
           })}
         </div>
       )}
 
       {/* Create Milestone Modal */}
-      {isCreateModalOpen && (
-        <Dialog open onOpenChange={(open) => !open && setIsCreateModalOpen(false)}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <div className="flex items-center gap-2 text-primary font-semibold">
-                <Target className="h-4 w-4" />
-                <DialogTitle>New Milestone</DialogTitle>
-              </div>
-              <DialogDescription>
-                Define a sprint iteration, release target, or project phase.
-              </DialogDescription>
-            </DialogHeader>
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogContent className="sm:max-w-md border-border/80 bg-popover">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold text-foreground">
+              Create New Milestone
+            </DialogTitle>
+            <DialogDescription className="text-[12px] text-muted-foreground">
+              Define a sprint goal, feature milestone, or upcoming version release.
+            </DialogDescription>
+          </DialogHeader>
 
-            <form onSubmit={handleCreate} className="space-y-3.5 pt-2">
-              <div className="space-y-1">
-                <label className="text-[12px] font-medium text-foreground">Name *</label>
-                <Input
-                  type="text"
-                  placeholder="e.g. v1.2 Release, Sprint 4"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
+          <form onSubmit={handleCreate} className="space-y-3.5 py-2">
+            <div className="space-y-1">
+              <label className="text-[12px] font-medium text-foreground">
+                Milestone Name <span className="text-destructive">*</span>
+              </label>
+              <Input
+                placeholder="e.g., v1.0.0 MVP Release or Sprint 4"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="text-[12.5px] h-8.5"
+                required
+                autoFocus
+              />
+            </div>
 
-              <div className="space-y-1">
-                <label className="text-[12px] font-medium text-foreground">Description</label>
-                <Textarea
-                  placeholder="Goals, target scope, and deliverables for this milestone..."
-                  rows={3}
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                />
-              </div>
+            <div className="space-y-1">
+              <label className="text-[12px] font-medium text-foreground">Target Due Date</label>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+                className="text-[12.5px] h-8.5"
+              />
+            </div>
 
-              <div className="space-y-1">
-                <label className="text-[12px] font-medium text-foreground">Due Date</label>
-                <Input
-                  type="date"
-                  value={dueDate}
-                  onChange={(e) => setDueDate(e.target.value)}
-                />
-              </div>
+            <div className="space-y-1">
+              <label className="text-[12px] font-medium text-foreground">Description</label>
+              <Textarea
+                placeholder="Describe the scope, deliverables, or objectives for this milestone..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="text-[12.5px] min-h-[75px] resize-none"
+              />
+            </div>
 
-              <DialogFooter className="pt-2 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsCreateModalOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit" size="sm" disabled={loading || !name.trim()}>
-                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Create Milestone'}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
+            <DialogFooter className="pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsCreateModalOpen(false)}
+                className="text-[12px] h-8"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={loading || !name.trim()}
+                className="text-[12px] h-8 font-medium"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                    <span>Creating...</span>
+                  </>
+                ) : (
+                  <span>Create Milestone</span>
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -22,8 +22,8 @@ const typeConfig: Record<
   TASK: {
     label: 'Task',
     icon: CheckSquare,
-    textClass: 'text-blue-400',
-    bgClass: 'bg-blue-500/10 border-blue-500/20',
+    textClass: 'text-sky-400',
+    bgClass: 'bg-sky-500/10 border-sky-500/20',
   },
   IMPROVEMENT: {
     label: 'Improvement',
@@ -49,7 +49,7 @@ export function TypeBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border',
+        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-mono font-medium border transition-colors',
         config.bgClass,
         config.textClass,
         className
@@ -60,3 +60,4 @@ export function TypeBadge({
     </span>
   )
 }
+

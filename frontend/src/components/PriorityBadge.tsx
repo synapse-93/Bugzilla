@@ -22,13 +22,13 @@ const priorityConfig: Record<
   MEDIUM: {
     label: 'Medium',
     icon: ArrowRight,
-    textClass: 'text-yellow-400',
-    bgClass: 'bg-yellow-500/10 border-yellow-500/20',
+    textClass: 'text-amber-400/90',
+    bgClass: 'bg-amber-500/10 border-amber-500/20',
   },
   LOW: {
     label: 'Low',
     icon: ArrowDown,
-    textClass: 'text-emerald-400',
+    textClass: 'text-emerald-400/90',
     bgClass: 'bg-emerald-500/10 border-emerald-500/20',
   },
 }
@@ -49,7 +49,7 @@ export function PriorityBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border',
+        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10.5px] font-mono font-medium border transition-colors',
         config.bgClass,
         config.textClass,
         className
@@ -60,3 +60,4 @@ export function PriorityBadge({
     </span>
   )
 }
+

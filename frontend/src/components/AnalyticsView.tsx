@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { AnalyticsSummary, Issue } from '../types'
 import { api } from '../api/client'
 import {
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
@@ -10,16 +9,14 @@ import {
   Bar,
   XAxis,
   YAxis,
-  Tooltip,
   Legend,
   AreaChart,
   Area,
   CartesianGrid,
 } from 'recharts'
-import { BarChart2, PieChart as PieIcon, TrendingUp, Tag, Activity } from 'lucide-react'
+import { BarChart2, PieChart as PieIcon, TrendingUp, Tag } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from './ui/chart'
-import { NeonPatternDefs } from './NeonPatternDefs'
 
 interface AnalyticsViewProps {
   projectId: number
@@ -35,10 +32,10 @@ const STATUS_COLORS: Record<string, string> = {
 }
 
 const PRIORITY_COLORS: Record<string, string> = {
-  URGENT: '#ef4444',
-  HIGH: '#f97316',
-  MEDIUM: '#eab308',
-  LOW: '#34d399',
+  URGENT: '#f87171',
+  HIGH: '#fb923c',
+  MEDIUM: '#fbbf24',
+  LOW: '#4ade80',
 }
 
 export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
@@ -196,63 +193,61 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
   }
 
   if (loading) {
-    return <div className="text-center py-16 text-muted-foreground text-[13px]">Computing telemetry and analytics...</div>
+    return <div className="text-center py-16 text-muted-foreground text-[12px] font-mono">Computing telemetry and analytics...</div>
   }
 
   return (
-    <div className="space-y-6 max-w-[1400px] w-full min-w-0">
-      <NeonPatternDefs />
-
+    <div className="space-y-5 max-w-[1400px] w-full min-w-0">
       {/* Top Metric Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Card className="border-border/80 bg-card p-4 space-y-1">
-          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+        <div className="rounded-lg border border-border/60 bg-card/40 p-4 space-y-1">
+          <p className="text-[10px] font-mono font-medium text-muted-foreground uppercase tracking-wider">
             Total Issues
           </p>
-          <p className="text-2xl font-bold text-foreground">{summary?.total || 0}</p>
-          <p className="text-[10px] text-muted-foreground">Across entire history</p>
-        </Card>
+          <p className="text-2xl font-bold text-foreground font-mono">{summary?.total || 0}</p>
+          <p className="text-[10px] font-mono text-muted-foreground/70">Across entire history</p>
+        </div>
 
-        <Card className="border-border/80 bg-card p-4 space-y-1">
-          <p className="text-[11px] font-medium text-sky-400 uppercase tracking-wider">
+        <div className="rounded-lg border border-border/60 bg-card/40 p-4 space-y-1">
+          <p className="text-[10px] font-mono font-medium text-sky-400 uppercase tracking-wider">
             Active / Open
           </p>
-          <p className="text-2xl font-bold text-sky-400">
+          <p className="text-2xl font-bold text-sky-400 font-mono">
             {(summary?.open || 0) + (summary?.inProgress || 0) + (summary?.inReview || 0)}
           </p>
-          <p className="text-[10px] text-muted-foreground">{summary?.inProgress || 0} in active development</p>
-        </Card>
+          <p className="text-[10px] font-mono text-muted-foreground/70">{summary?.inProgress || 0} in active development</p>
+        </div>
 
-        <Card className="border-border/80 bg-card p-4 space-y-1">
-          <p className="text-[11px] font-medium text-emerald-400 uppercase tracking-wider">
+        <div className="rounded-lg border border-border/60 bg-card/40 p-4 space-y-1">
+          <p className="text-[10px] font-mono font-medium text-emerald-400 uppercase tracking-wider">
             Resolution Rate
           </p>
-          <p className="text-2xl font-bold text-emerald-400">{summary?.resolutionRate || 0}%</p>
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-2xl font-bold text-emerald-400 font-mono">{summary?.resolutionRate || 0}%</p>
+          <p className="text-[10px] font-mono text-muted-foreground/70">
             {(summary?.resolved || 0) + (summary?.closed || 0)} resolved or closed
           </p>
-        </Card>
+        </div>
 
-        <Card className="border-border/80 bg-card p-4 space-y-1">
-          <p className="text-[11px] font-medium text-red-400 uppercase tracking-wider">
+        <div className="rounded-lg border border-border/60 bg-card/40 p-4 space-y-1">
+          <p className="text-[10px] font-mono font-medium text-red-400 uppercase tracking-wider">
             Urgent / Critical
           </p>
-          <p className="text-2xl font-bold text-red-400">{summary?.criticalBugs || 0}</p>
-          <p className="text-[10px] text-muted-foreground">High impact items</p>
-        </Card>
+          <p className="text-2xl font-bold text-red-400 font-mono">{summary?.criticalBugs || 0}</p>
+          <p className="text-[10px] font-mono text-muted-foreground/70">High impact items</p>
+        </div>
       </div>
 
       {/* Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Status Distribution */}
-        <Card className="border-border/80 bg-card">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
-              <PieIcon className="h-4 w-4 text-sky-400" />
+        <Card className="border-border/60 bg-card/40">
+          <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-[12.5px] font-semibold text-foreground flex items-center gap-1.5">
+              <PieIcon className="h-3.5 w-3.5 text-sky-400" />
               <span>Status Distribution</span>
             </CardTitle>
-            <CardDescription className="text-[11px] text-muted-foreground">
-              Proportion of issues across each pipeline stage
+            <CardDescription className="text-[10.5px] font-mono text-muted-foreground">
+              Proportion of issues across pipeline stages
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
@@ -265,7 +260,9 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
                   nameKey="name"
                   cx="50%"
                   cy="50%"
+                  innerRadius={50}
                   outerRadius={75}
+                  paddingAngle={2}
                 >
                   {statusData.map((entry, idx) => (
                     <Cell key={`cell-${idx}`} fill={entry.color} />
@@ -277,24 +274,24 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
         </Card>
 
         {/* Priority Breakdown */}
-        <Card className="border-border/80 bg-card">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
-              <BarChart2 className="h-4 w-4 text-amber-400" />
+        <Card className="border-border/60 bg-card/40">
+          <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-[12.5px] font-semibold text-foreground flex items-center gap-1.5">
+              <BarChart2 className="h-3.5 w-3.5 text-amber-400" />
               <span>Priority Breakdown</span>
             </CardTitle>
-            <CardDescription className="text-[11px] text-muted-foreground">
+            <CardDescription className="text-[10.5px] font-mono text-muted-foreground">
               Distribution of issues by priority level
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <ChartContainer config={defaultChartConfig} className="h-[220px] w-full">
               <BarChart data={priorityData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.5)" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="value" name="Issues" radius={[3, 3, 0, 0]}>
+                <Bar dataKey="value" name="Issues" radius={[2, 2, 0, 0]}>
                   {priorityData.map((entry, idx) => (
                     <Cell key={`cell-bar-${idx}`} fill={entry.color} />
                   ))}
@@ -305,55 +302,55 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
         </Card>
 
         {/* 7-Day Velocity Trend */}
-        <Card className="border-border/80 bg-card">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
-              <TrendingUp className="h-4 w-4 text-emerald-400" />
-              <span>7-Day Issue Activity</span>
+        <Card className="border-border/60 bg-card/40">
+          <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-[12.5px] font-semibold text-foreground flex items-center gap-1.5">
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+              <span>7-Day Activity Stream</span>
             </CardTitle>
-            <CardDescription className="text-[11px] text-muted-foreground">
-              New vs. resolved issues over the past week
+            <CardDescription className="text-[10.5px] font-mono text-muted-foreground">
+              New vs. resolved issues over the past 7 days
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <ChartContainer config={defaultChartConfig} className="h-[220px] w-full">
               <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.5)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
-                <Area type="monotone" dataKey="created" name="Created" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.2} />
-                <Area type="monotone" dataKey="resolved" name="Resolved" stroke="#4ade80" fill="#4ade80" fillOpacity={0.2} />
+                <Area type="monotone" dataKey="created" name="Created" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.15} />
+                <Area type="monotone" dataKey="resolved" name="Resolved" stroke="#4ade80" fill="#4ade80" fillOpacity={0.15} />
               </AreaChart>
             </ChartContainer>
           </CardContent>
         </Card>
 
         {/* Top Labels Distribution */}
-        <Card className="border-border/80 bg-card">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
-              <Tag className="h-4 w-4 text-purple-400" />
+        <Card className="border-border/60 bg-card/40">
+          <CardHeader className="p-4 pb-1">
+            <CardTitle className="text-[12.5px] font-semibold text-foreground flex items-center gap-1.5">
+              <Tag className="h-3.5 w-3.5 text-purple-400" />
               <span>Top Labels</span>
             </CardTitle>
-            <CardDescription className="text-[11px] text-muted-foreground">
+            <CardDescription className="text-[10.5px] font-mono text-muted-foreground">
               Most frequently applied tags
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             {labelData.length === 0 ? (
-              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-[12px]">
+              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-[11px] font-mono">
                 No labeled issues recorded yet.
               </div>
             ) : (
               <ChartContainer config={defaultChartConfig} className="h-[220px] w-full">
                 <BarChart data={labelData} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border)/0.5)" horizontal={false} />
                   <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
                   <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} width={80} />
                   <ChartTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="count" name="Issues" fill="#818cf8" radius={[0, 3, 3, 0]} />
+                  <Bar dataKey="count" name="Issues" fill="hsl(var(--primary))" radius={[0, 2, 2, 0]} />
                 </BarChart>
               </ChartContainer>
             )}
@@ -363,3 +360,4 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
     </div>
   )
 }
+

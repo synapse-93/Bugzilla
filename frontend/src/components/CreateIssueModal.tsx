@@ -73,13 +73,13 @@ export function CreateIssueModal({
 
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto border-border/80 bg-popover">
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary font-semibold">
             <PlusCircle className="h-4 w-4" />
-            <DialogTitle>Create New Issue</DialogTitle>
+            <DialogTitle className="text-base font-bold text-foreground">Create New Issue</DialogTitle>
           </div>
-          <DialogDescription>
+          <DialogDescription className="text-[12px] text-muted-foreground">
             Report a bug, submit a feature request, or create a development task.
           </DialogDescription>
         </DialogHeader>
@@ -97,7 +97,7 @@ export function CreateIssueModal({
               onChange={(e) => setTitle(e.target.value)}
               required
               autoFocus
-              className="text-[13px]"
+              className="text-[13px] h-8.5 bg-background/50 border-border/70"
             />
           </div>
 
@@ -111,7 +111,7 @@ export function CreateIssueModal({
               rows={4}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="text-[13px] resize-y"
+              className="text-[12.5px] resize-y bg-background/50 border-border/70 min-h-[90px]"
             />
           </div>
 
@@ -119,11 +119,11 @@ export function CreateIssueModal({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {/* Issue Type */}
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Type</label>
+              <label className="text-[10.5px] font-mono font-medium text-muted-foreground uppercase tracking-wider">Type</label>
               <select
                 value={issueType}
                 onChange={(e) => setIssueType(e.target.value as IssueType)}
-                className="w-full h-8 rounded-md border border-input bg-background/50 px-2.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                className="w-full h-8 rounded-md border border-border/70 bg-background/50 px-2.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
               >
                 <option value="BUG">Bug</option>
                 <option value="FEATURE">Feature</option>
@@ -134,11 +134,11 @@ export function CreateIssueModal({
 
             {/* Assignee */}
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Assignee</label>
+              <label className="text-[10.5px] font-mono font-medium text-muted-foreground uppercase tracking-wider">Assignee</label>
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full h-8 rounded-md border border-input bg-background/50 px-2.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                className="w-full h-8 rounded-md border border-border/70 bg-background/50 px-2.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
               >
                 <option value="">Unassigned</option>
                 {members.map((m) => (
@@ -151,11 +151,11 @@ export function CreateIssueModal({
 
             {/* Priority */}
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Priority</label>
+              <label className="text-[10.5px] font-mono font-medium text-muted-foreground uppercase tracking-wider">Priority</label>
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as PriorityLevel)}
-                className="w-full h-8 rounded-md border border-input bg-background/50 px-2.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                className="w-full h-8 rounded-md border border-border/70 bg-background/50 px-2.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
               >
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
@@ -166,11 +166,11 @@ export function CreateIssueModal({
 
             {/* Severity */}
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Severity</label>
+              <label className="text-[10.5px] font-mono font-medium text-muted-foreground uppercase tracking-wider">Severity</label>
               <select
                 value={severity}
                 onChange={(e) => setSeverity(e.target.value as SeverityLevel)}
-                className="w-full h-8 rounded-md border border-input bg-background/50 px-2.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+                className="w-full h-8 rounded-md border border-border/70 bg-background/50 px-2.5 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
               >
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
@@ -183,7 +183,7 @@ export function CreateIssueModal({
           {/* Labels Selection */}
           {labels.length > 0 && (
             <div className="space-y-1.5 pt-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Labels</label>
+              <label className="text-[10.5px] font-mono font-medium text-muted-foreground uppercase tracking-wider">Labels</label>
               <div className="flex gap-1.5 flex-wrap">
                 {labels.map((lbl) => {
                   const isSelected = selectedLabelIds.includes(lbl.id)
@@ -193,7 +193,7 @@ export function CreateIssueModal({
                       type="button"
                       onClick={() => handleToggleLabel(lbl.id)}
                       className={cn(
-                        'px-2 py-0.5 rounded text-[11px] font-medium transition-all border cursor-pointer',
+                        'px-2 py-0.5 rounded text-[10px] font-mono font-medium transition-all border cursor-pointer',
                         isSelected
                           ? 'border-primary bg-primary/20 text-primary shadow-xs'
                           : 'border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60'
@@ -214,7 +214,7 @@ export function CreateIssueModal({
               variant="outline"
               size="sm"
               onClick={onClose}
-              className="text-[12px]"
+              className="text-[12px] h-8"
             >
               Cancel
             </Button>
@@ -222,7 +222,7 @@ export function CreateIssueModal({
               type="submit"
               size="sm"
               disabled={loading || !title.trim()}
-              className="text-[12px] gap-1.5 font-medium"
+              className="text-[12px] h-8 gap-1.5 font-medium shadow-xs"
             >
               {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
               <span>Create Issue</span>
@@ -233,3 +233,4 @@ export function CreateIssueModal({
     </Dialog>
   )
 }
+

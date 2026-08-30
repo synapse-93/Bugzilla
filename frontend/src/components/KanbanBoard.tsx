@@ -12,12 +12,9 @@ import {
   useDraggable,
 } from '@dnd-kit/core'
 import { getIssueDisplayIdentifier } from '../utils/helpers'
-import { StatusBadge } from './StatusBadge'
-import { SeverityBadge } from './SeverityBadge'
 import { PriorityBadge } from './PriorityBadge'
 import { TypeBadge } from './TypeBadge'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
-import { Button } from './ui/button'
 import { Play, Eye, CheckCircle2, RotateCcw, Check, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -28,12 +25,12 @@ interface KanbanBoardProps {
   onOpenCreateIssue?: () => void
 }
 
-const COLUMNS: { id: IssueStatus; title: string; color: string; dotClass: string }[] = [
-  { id: 'OPEN', title: 'Open', color: '#38bdf8', dotClass: 'bg-sky-400' },
-  { id: 'IN_PROGRESS', title: 'In Progress', color: '#fbbf24', dotClass: 'bg-amber-400' },
-  { id: 'IN_REVIEW', title: 'In Review', color: '#c084fc', dotClass: 'bg-purple-400' },
-  { id: 'RESOLVED', title: 'Resolved', color: '#4ade80', dotClass: 'bg-emerald-400' },
-  { id: 'CLOSED', title: 'Closed', color: '#71717a', dotClass: 'bg-zinc-500' },
+const COLUMNS: { id: IssueStatus; title: string; dotClass: string }[] = [
+  { id: 'OPEN', title: 'Open', dotClass: 'bg-sky-400' },
+  { id: 'IN_PROGRESS', title: 'In Progress', dotClass: 'bg-amber-400' },
+  { id: 'IN_REVIEW', title: 'In Review', dotClass: 'bg-purple-400' },
+  { id: 'RESOLVED', title: 'Resolved', dotClass: 'bg-emerald-400' },
+  { id: 'CLOSED', title: 'Closed', dotClass: 'bg-zinc-500' },
 ]
 
 function KanbanCard({
@@ -69,7 +66,7 @@ function KanbanCard({
             e.stopPropagation()
             onUpdateStatus(issue, 'IN_PROGRESS')
           }}
-          className="flex items-center gap-1 text-[10px] text-amber-400 hover:bg-amber-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1 text-[9.5px] font-mono text-amber-400 hover:bg-amber-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer border border-amber-400/20"
           title="Move to In Progress"
         >
           <Play className="h-2.5 w-2.5" />
@@ -85,7 +82,7 @@ function KanbanCard({
             e.stopPropagation()
             onUpdateStatus(issue, 'IN_REVIEW')
           }}
-          className="flex items-center gap-1 text-[10px] text-purple-400 hover:bg-purple-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1 text-[9.5px] font-mono text-purple-400 hover:bg-purple-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer border border-purple-400/20"
           title="Move to In Review"
         >
           <Eye className="h-2.5 w-2.5" />
@@ -101,7 +98,7 @@ function KanbanCard({
             e.stopPropagation()
             onUpdateStatus(issue, 'RESOLVED')
           }}
-          className="flex items-center gap-1 text-[10px] text-emerald-400 hover:bg-emerald-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1 text-[9.5px] font-mono text-emerald-400 hover:bg-emerald-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer border border-emerald-400/20"
           title="Mark as Resolved"
         >
           <CheckCircle2 className="h-2.5 w-2.5" />
@@ -117,7 +114,7 @@ function KanbanCard({
             e.stopPropagation()
             onUpdateStatus(issue, 'CLOSED')
           }}
-          className="flex items-center gap-1 text-[10px] text-zinc-400 hover:bg-zinc-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1 text-[9.5px] font-mono text-zinc-400 hover:bg-zinc-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer border border-zinc-400/20"
           title="Close Issue"
         >
           <Check className="h-2.5 w-2.5" />
@@ -133,7 +130,7 @@ function KanbanCard({
             e.stopPropagation()
             onUpdateStatus(issue, 'OPEN')
           }}
-          className="flex items-center gap-1 text-[10px] text-sky-400 hover:bg-sky-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          className="inline-flex items-center gap-1 text-[9.5px] font-mono text-sky-400 hover:bg-sky-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer border border-sky-400/20"
           title="Reopen Issue"
         >
           <RotateCcw className="h-2.5 w-2.5" />
@@ -152,9 +149,9 @@ function KanbanCard({
       {...listeners}
       onClick={() => onSelectIssue(issue)}
       className={cn(
-        'rounded-md border border-border/80 bg-card p-3 shadow-xs hover:border-border hover:shadow-md transition-all cursor-pointer select-none space-y-2 group',
+        'rounded-md border border-border/60 bg-card/60 p-2.5 shadow-xs hover:border-primary/40 hover:bg-card/90 transition-all cursor-pointer select-none space-y-2 group',
         isDragging && 'opacity-30 border-primary/50',
-        isOverlay && 'shadow-2xl border-primary scale-102 bg-card/95 backdrop-blur-sm'
+        isOverlay && 'shadow-2xl border-primary scale-102 bg-card/95 backdrop-blur-md z-50'
       )}
     >
       <div className="flex items-center justify-between gap-1.5">
@@ -167,7 +164,7 @@ function KanbanCard({
         </div>
       </div>
 
-      <p className="text-[12.5px] font-medium text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+      <p className="text-[12px] font-medium text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
         {issue.title}
       </p>
 
@@ -176,11 +173,11 @@ function KanbanCard({
           {issue.labels.map((lbl) => (
             <span
               key={lbl.id}
-              className="px-1.5 py-0.2 rounded text-[9.5px] font-medium border"
+              className="px-1.5 py-0.2 rounded text-[9px] font-mono font-medium border"
               style={{
                 backgroundColor: `${lbl.color}15`,
                 color: lbl.color,
-                borderColor: `${lbl.color}40`,
+                borderColor: `${lbl.color}35`,
               }}
             >
               {lbl.name}
@@ -189,23 +186,23 @@ function KanbanCard({
         </div>
       )}
 
-      <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[11px]">
+      <div className="flex items-center justify-between pt-2 border-t border-border/40 text-[10.5px]">
         {issue.assignee ? (
           <div className="flex items-center gap-1.5 min-w-0">
-            <Avatar className="h-4 w-4 shrink-0">
+            <Avatar className="h-4 w-4 shrink-0 border border-border/60">
               {issue.assignee.avatar_url && (
                 <AvatarImage src={issue.assignee.avatar_url} alt={issue.assignee.username} />
               )}
-              <AvatarFallback className="text-[8px] font-bold bg-primary/20 text-primary">
+              <AvatarFallback className="text-[7.5px] font-mono font-semibold bg-primary/15 text-primary">
                 {issue.assignee.username.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <span className="text-muted-foreground truncate max-w-[80px]">
+            <span className="text-muted-foreground truncate max-w-[75px]">
               {issue.assignee.display_name || issue.assignee.username}
             </span>
           </div>
         ) : (
-          <span className="text-muted-foreground text-[10px]">Unassigned</span>
+          <span className="text-muted-foreground/60 font-mono text-[9.5px]">Unassigned</span>
         )}
 
         <div className="shrink-0">{renderQuickAction()}</div>
@@ -219,38 +216,56 @@ function KanbanColumn({
   issues,
   onSelectIssue,
   onUpdateStatus,
+  onOpenCreateIssue,
 }: {
-  column: { id: IssueStatus; title: string; color: string; dotClass: string }
+  column: { id: IssueStatus; title: string; dotClass: string }
   issues: Issue[]
   onSelectIssue: (issue: Issue) => void
   onUpdateStatus: (issue: Issue, newStatus: IssueStatus) => Promise<void>
+  onOpenCreateIssue?: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({
     id: `column-${column.id}`,
     data: { status: column.id },
   })
 
+  const formattedCount = String(issues.length).padStart(2, '0')
+
   return (
     <div
       ref={setNodeRef}
       className={cn(
-        'flex flex-col rounded-lg border border-border/70 bg-sidebar/50 p-2 min-w-[260px] max-w-[320px] flex-1 shrink-0 transition-colors',
-        isOver && 'border-primary/60 bg-primary/5 shadow-[0_0_15px_rgba(99,102,241,0.1)]'
+        'flex flex-col rounded-lg border border-border/60 bg-card/25 p-2 min-w-[210px] flex-1 shrink-0 lg:shrink transition-colors h-full',
+        isOver && 'border-primary/60 bg-primary/5 shadow-inner'
       )}
     >
       {/* Column Header */}
-      <div className="flex items-center justify-between px-2 py-1.5 mb-2">
+      <div className="flex items-center justify-between px-2 py-1.5 mb-2 border-b border-border/40 pb-2">
         <div className="flex items-center gap-2">
-          <span className={cn('h-2 w-2 rounded-full shrink-0', column.dotClass)} />
-          <span className="text-[12.5px] font-semibold text-foreground">{column.title}</span>
+          <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', column.dotClass)} />
+          <span className="text-[11px] font-mono font-semibold tracking-wider text-muted-foreground/90 uppercase">
+            {column.title}
+          </span>
         </div>
-        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-medium bg-muted text-muted-foreground">
-          {issues.length}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-medium bg-muted/60 text-muted-foreground border border-border/40">
+            {formattedCount}
+          </span>
+          {onOpenCreateIssue && column.id === 'OPEN' && (
+            <button
+              type="button"
+              onClick={onOpenCreateIssue}
+              className="h-5 w-5 rounded inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors cursor-pointer"
+              title="Create Issue in Open"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Cards List */}
-      <div className="flex-1 space-y-2 overflow-y-auto max-h-[calc(100vh-210px)] pr-0.5">
+      <div className="flex-1 space-y-2 overflow-y-auto pr-0.5 min-h-[140px] max-h-[calc(100vh-210px)]">
         {issues.map((issue) => (
           <KanbanCard
             key={issue.id}
@@ -261,8 +276,10 @@ function KanbanColumn({
         ))}
 
         {issues.length === 0 && (
-          <div className="flex items-center justify-center p-6 border border-dashed border-border/60 rounded-md text-center">
-            <span className="text-[11px] text-muted-foreground">No issues in {column.title.toLowerCase()}</span>
+          <div className="flex items-center justify-center py-10 px-3 border border-dashed border-border/40 rounded-md text-center">
+            <span className="text-[10.5px] font-mono text-muted-foreground/60">
+              No issues in {column.title.toLowerCase()}
+            </span>
           </div>
         )}
       </div>
@@ -274,6 +291,7 @@ export function KanbanBoard({
   issues,
   onSelectIssue,
   onUpdateStatus,
+  onOpenCreateIssue,
 }: KanbanBoardProps) {
   const [activeIssue, setActiveIssue] = useState<Issue | null>(null)
 
@@ -308,7 +326,7 @@ export function KanbanBoard({
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="flex gap-3 overflow-x-auto pb-4 pt-1 w-full min-w-0">
+      <div className="flex gap-3 overflow-x-auto pb-4 pt-1 w-full min-w-0 h-[calc(100vh-140px)]">
         {COLUMNS.map((col) => {
           const colIssues = issues.filter((i) => i.status === col.id)
           return (
@@ -318,6 +336,7 @@ export function KanbanBoard({
               issues={colIssues}
               onSelectIssue={onSelectIssue}
               onUpdateStatus={onUpdateStatus}
+              onOpenCreateIssue={onOpenCreateIssue}
             />
           )
         })}
@@ -335,3 +354,4 @@ export function KanbanBoard({
     </DndContext>
   )
 }
+
