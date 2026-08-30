@@ -79,14 +79,23 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
 
           if (capabilitiesRef.current && window.innerWidth >= 1024) {
             const rect = capabilitiesRef.current.getBoundingClientRect()
-            const totalDistance = capabilitiesRef.current.offsetHeight - window.innerHeight
-            if (totalDistance > 0) {
-              const topOffset = 56 // 56px sticky header
-              const currentProgress = (topOffset - rect.top) / totalDistance
-              const clamped = Math.max(0, Math.min(1, currentProgress))
+            const sectionTopDoc = window.scrollY + rect.top
+            const sectionHeight = capabilitiesRef.current.offsetHeight
+            const viewportHeight = window.innerHeight
+            const stickyTopOffset = 56 // 56px sticky header
+
+            const sectionStart = sectionTopDoc - stickyTopOffset
+            const totalScroll = sectionHeight - viewportHeight
+            if (totalScroll > 0) {
+              const rawProgress = (window.scrollY - sectionStart) / totalScroll
+              const clamped = Math.max(0, Math.min(1, rawProgress))
               setCapabilitiesScrollProgress(clamped)
 
-              // 4 equal divisions: [0, 0.25), [0.25, 0.50), [0.50, 0.75), [0.75, 1.00]
+              // 4 discrete stages derived strictly from normalized progress:
+              // 0: [0.00, 0.25)
+              // 1: [0.25, 0.50)
+              // 2: [0.50, 0.75)
+              // 3: [0.75, 1.00]
               const stage = Math.min(3, Math.max(0, Math.floor(clamped * 4)))
               setActiveStage(stage)
             }
@@ -108,15 +117,20 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
   }, [])
 
   const scrollToStage = (stageIndex: number) => {
-    setActiveStage(stageIndex)
     if (capabilitiesRef.current && window.innerWidth >= 1024) {
       const rect = capabilitiesRef.current.getBoundingClientRect()
-      const containerDocTop = window.scrollY + rect.top
-      const totalDistance = capabilitiesRef.current.offsetHeight - window.innerHeight
-      const topOffset = 56
-      const stageProgressFraction = (stageIndex + 0.5) / 4
-      const targetY = containerDocTop - topOffset + stageProgressFraction * totalDistance
-      window.scrollTo({ top: targetY, behavior: 'smooth' })
+      const sectionTopDoc = window.scrollY + rect.top
+      const sectionHeight = capabilitiesRef.current.offsetHeight
+      const viewportHeight = window.innerHeight
+      const stickyTopOffset = 56
+      const totalScroll = sectionHeight - viewportHeight
+
+      // Smooth scroll to the center of target stage's scroll window:
+      const stageCenterFraction = (stageIndex + 0.5) / 4
+      const targetScrollY = sectionTopDoc - stickyTopOffset + stageCenterFraction * totalScroll
+      window.scrollTo({ top: targetScrollY, behavior: 'smooth' })
+    } else {
+      setActiveStage(stageIndex)
     }
   }
 
@@ -129,7 +143,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
   const activeCap = CAPABILITIES[activeStage] || CAPABILITIES[0]
 
   return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 flex flex-col items-center relative overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground selection:bg-primary/20 flex flex-col items-center relative overflow-x-clip">
       {/* Precision Background Guide Rail (Desktop Only) */}
       <div
         className="hidden xl:block absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-transparent via-border/40 to-transparent pointer-events-none z-0"
@@ -178,10 +192,10 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
       </header>
 
       {/* Main Long-Scroll Continuous Container */}
-      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 flex flex-col space-y-24 sm:space-y-32 py-10 sm:py-16 relative z-10">
+      <main className="w-full max-w-6xl mx-auto px-4 sm:px-6 flex flex-col py-10 sm:py-16 relative z-10">
         
         {/* SECTION 1: HERO */}
-        <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center pt-2 sm:pt-8 min-h-[70vh] sm:min-h-[75vh]">
+        <section className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-center pt-2 sm:pt-8 min-h-[70vh] sm:min-h-[75vh] mb-20 sm:mb-28">
           <div
             className="lg:col-span-7 flex flex-col space-y-6 max-w-xl transition-all duration-300 ease-out"
             style={{ transform: heroTextTransform }}
@@ -241,7 +255,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
         </section>
 
         {/* SECTION 2: CORE PHILOSOPHY */}
-        <section className="flex flex-col space-y-8 border-t border-border/50 pt-16 sm:pt-20">
+        <section className="flex flex-col space-y-8 border-t border-border/50 pt-16 sm:pt-20 mb-20 sm:mb-28">
           <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
             <SectionCrosshair />
             <span>00 • Core Philosophy</span>
@@ -263,7 +277,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
         </section>
 
         {/* SECTION 3: WORKFLOW ENGINE */}
-        <section className="flex flex-col space-y-8 border-t border-border/50 pt-16 sm:pt-20">
+        <section className="flex flex-col space-y-8 border-t border-border/50 pt-16 sm:pt-20 mb-20 sm:mb-28">
           <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
             <SectionCrosshair />
             <span>01 • Workflow Engine</span>
@@ -286,7 +300,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
         {/* SECTION 4: PINNED CONTINUOUS STORYTELLING CAPABILITIES */}
         <section
           ref={capabilitiesRef}
-          className="relative border-t border-border/50 pt-12 lg:pt-0 lg:h-[260vh]"
+          className="relative border-t border-border/50 pt-12 lg:pt-0 lg:h-[280vh] mb-20 sm:mb-28"
         >
           {/* DESKTOP PINNED STORYTELLING (>= 1024px) */}
           <div className="hidden lg:flex sticky top-14 h-[calc(100vh-3.5rem)] flex-col justify-center w-full overflow-hidden py-4">
@@ -346,17 +360,17 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
                 </div>
               </div>
 
-              {/* Right Column: Progressive Active Content Card */}
+              {/* Right Column: Active Content Card */}
               <div className="col-span-7 relative min-h-[340px] flex items-center">
                 <div
                   key={activeCap.id}
-                  className="w-full p-8 rounded-xl border border-primary/40 bg-card/80 shadow-xl space-y-4 transition-all duration-300 ease-out"
+                  className="w-full p-8 rounded-xl border border-primary/40 bg-card/90 shadow-xl space-y-4 transition-all duration-300 ease-out"
                 >
                   <div className="flex items-center justify-between gap-2 flex-wrap">
                     <span className="font-mono text-[12px] font-semibold text-primary">
                       {activeCap.tag}
                     </span>
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border/40">
+                    <span className="text-[10px] font-mono px-2.5 py-0.5 rounded bg-muted/60 text-muted-foreground border border-border/40">
                       {activeCap.detail}
                     </span>
                   </div>
@@ -374,7 +388,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
                     {activeCap.bullets.map((b, bIdx) => (
                       <div
                         key={bIdx}
-                        className="flex items-center gap-2 p-2 rounded bg-muted/30 border border-border/50 text-[11px] font-mono text-muted-foreground"
+                        className="flex items-center gap-2 p-2.5 rounded bg-muted/30 border border-border/50 text-[11px] font-mono text-muted-foreground"
                       >
                         <CheckCircle2 className="h-3.5 w-3.5 text-primary shrink-0" />
                         <span className="truncate">{b}</span>
@@ -464,7 +478,7 @@ export function LandingPage({ onOpenAuth }: LandingPageProps) {
         </section>
 
         {/* SECTION 5: ENGINEERING PRIMITIVES */}
-        <section className="flex flex-col space-y-8 border-t border-border/50 pt-16 sm:pt-20">
+        <section className="flex flex-col space-y-8 border-t border-border/50 pt-16 sm:pt-20 mb-20 sm:mb-28">
           <div className="flex items-center gap-2 font-mono text-[11px] text-muted-foreground uppercase tracking-widest">
             <SectionCrosshair />
             <span>03 • Engineering Primitives</span>
