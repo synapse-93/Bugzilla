@@ -139,3 +139,41 @@ def test_production_cors_methods_and_headers(monkeypatch):
     assert "Access-Control-Allow-Origin" not in unauth_resp.headers
 
 
+def test_vercel_preview_and_stable_origins_oauth_preflight(monkeypatch):
+    """Verify preview deployment domains and stable domains have valid CORS on OAuth routes."""
+    monkeypatch.setenv("JWT_SECRET_KEY", "test-only-jwt-secret-for-pytest")
+    monkeypatch.setenv("DATABASE_URL", "postgresql://test:test@localhost:5432/testdb")
+    app = create_app("production")
+    client = app.test_client()
+
+    test_origins = [
+        "https://bugzilla-frontend-qav3ksdrb-idealab-2062.vercel.app",
+        "https://bugzilla-frontend.vercel.app",
+        "https://bugzilla-foundation.vercel.app",
+    ]
+
+    test_routes = [
+        "/api/auth/google",
+        "/api/auth/github",
+        "/api/auth/register",
+        "/api/auth/oauth/complete-registration",
+    ]
+
+    for origin in test_origins:
+        for route in test_routes:
+            resp = client.options(
+                route,
+                headers={
+                    "Origin": origin,
+                    "Access-Control-Request-Method": "POST",
+                    "Access-Control-Request-Headers": "Content-Type,Authorization",
+                },
+            )
+            assert resp.status_code == 200
+            assert resp.headers.get("Access-Control-Allow-Origin") == origin
+            assert resp.headers.get("Access-Control-Allow-Credentials") == "true"
+            assert "OPTIONS" in resp.headers.get("Access-Control-Allow-Methods", "")
+            assert "Content-Type" in resp.headers.get("Access-Control-Allow-Headers", "")
+
+
+

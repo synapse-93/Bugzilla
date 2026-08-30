@@ -27,7 +27,13 @@ class Config:
     # Configurable CORS origins for the frontend
     CORS_ORIGINS_RAW = os.environ.get(
         "CORS_ORIGINS",
-        "https://bugzilla-foundation.vercel.app,http://localhost:5173,http://localhost:3000,http://127.0.0.1:5173,http://127.0.0.1:3000",
+        "https://bugzilla-frontend.vercel.app,"
+        "https://bugzilla-frontend-qav3ksdrb-idealab-2062.vercel.app,"
+        "https://bugzilla-foundation.vercel.app,"
+        "http://localhost:5173,"
+        "http://localhost:3000,"
+        "http://127.0.0.1:5173,"
+        "http://127.0.0.1:3000",
     )
     CORS_ORIGINS = [
         origin.strip()

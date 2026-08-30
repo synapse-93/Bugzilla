@@ -1,5 +1,6 @@
 import os
-from flask import Flask, request
+import re
+from flask import Flask, request, make_response
 
 try:
     # pyrefly: ignore [missing-import]
@@ -24,6 +25,25 @@ from app.routes.notifications import notifications_bp
 from app.routes.milestones import milestones_bp
 from app.routes.relationships import relationships_bp
 import app.models  # noqa: F401
+
+ALLOWED_ORIGIN_PATTERNS = [
+    re.compile(r"^https://bugzilla-[a-zA-Z0-9_-]+\.vercel\.app$"),
+    re.compile(r"^https://[a-zA-Z0-9_-]+-idealab-2062\.vercel\.app$"),
+    re.compile(r"^https://bugzilla-frontend\.vercel\.app$"),
+    re.compile(r"^https://bugzilla-foundation\.vercel\.app$"),
+]
+
+
+def is_allowed_origin(origin: str | None, explicit_origins: list[str]) -> bool:
+    """Check if an origin is permitted explicitly or by dynamic preview pattern."""
+    if not origin:
+        return False
+    if explicit_origins and origin in explicit_origins:
+        return True
+    for pattern in ALLOWED_ORIGIN_PATTERNS:
+        if pattern.match(origin):
+            return True
+    return False
 
 
 def create_app(config_name=None):
@@ -56,7 +76,7 @@ def create_app(config_name=None):
         app,
         resources={
             r"/api/*": {
-                "origins": cors_origins,
+                "origins": cors_origins or ALLOWED_ORIGIN_PATTERNS,
                 "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
                 "allow_headers": [
                     "Content-Type",
@@ -86,10 +106,28 @@ def create_app(config_name=None):
         max_age=86400,
     )
 
+    @app.before_request
+    def handle_options_preflight():
+        """Handle CORS preflight OPTIONS requests directly with full headers."""
+        if request.method == "OPTIONS":
+            origin = request.headers.get("Origin")
+            if is_allowed_origin(origin, cors_origins):
+                resp = make_response("", 200)
+                resp.headers["Access-Control-Allow-Origin"] = origin
+                resp.headers["Access-Control-Allow-Credentials"] = "true"
+                resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+                resp.headers["Access-Control-Allow-Headers"] = (
+                    "Content-Type, Authorization, X-Requested-With, Accept, Origin, "
+                    "Access-Control-Request-Method, Access-Control-Request-Headers"
+                )
+                resp.headers["Access-Control-Max-Age"] = "86400"
+                return resp
+
     @app.after_request
     def ensure_cors_headers(response):
+        """Ensure all HTTP responses include exact CORS headers for allowed origins."""
         origin = request.headers.get("Origin")
-        if origin and cors_origins and origin in cors_origins:
+        if is_allowed_origin(origin, cors_origins):
             response.headers["Access-Control-Allow-Origin"] = origin
             response.headers["Access-Control-Allow-Credentials"] = "true"
             response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, PATCH, DELETE, OPTIONS"
@@ -97,6 +135,7 @@ def create_app(config_name=None):
                 "Content-Type, Authorization, X-Requested-With, Accept, Origin, "
                 "Access-Control-Request-Method, Access-Control-Request-Headers"
             )
+            response.headers["Access-Control-Max-Age"] = "86400"
         return response
     db.init_app(app)
     migrate.init_app(app, db)
