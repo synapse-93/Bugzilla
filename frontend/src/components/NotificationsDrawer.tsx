@@ -3,17 +3,26 @@ import { Activity, Issue, Notification } from '../types'
 import { api } from '../api/client'
 import {
   Bell,
-  Check,
   CheckCheck,
   MessageSquare,
   Tag,
   UserCheck,
-  X,
   Mail,
   Activity as ActivityIcon,
+  X,
 } from 'lucide-react'
 import { formatRelativeTime } from '../utils/helpers'
 import { toast } from 'sonner'
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetDescription,
+} from './ui/sheet'
+import { Button } from './ui/button'
+import { Tabs, TabsList, TabsTrigger, TabsContent } from './ui/tabs'
+import { cn } from '@/lib/utils'
 
 interface NotificationsDrawerProps {
   isOpen: boolean
@@ -79,199 +88,176 @@ export function NotificationsDrawer({
     }
   }
 
-  if (!isOpen) return null
-
   const getActionIcon = (actionType: string) => {
     switch (actionType) {
       case 'COMMENT_ADDED':
       case 'COMMENT_UPDATED':
-        return <MessageSquare size={14} className="text-blue-400" />
+        return <MessageSquare className="h-3.5 w-3.5 text-sky-400" />
       case 'ASSIGNED':
       case 'UNASSIGNED':
-        return <UserCheck size={14} className="text-emerald-400" />
+        return <UserCheck className="h-3.5 w-3.5 text-emerald-400" />
       case 'LABEL_ADDED':
       case 'LABEL_REMOVED':
-        return <Tag size={14} className="text-purple-400" />
+        return <Tag className="h-3.5 w-3.5 text-purple-400" />
       case 'STATUS_CHANGED':
-        return <ActivityIcon size={14} className="text-amber-400" />
+        return <ActivityIcon className="h-3.5 w-3.5 text-amber-400" />
       case 'INVITATION':
       case 'INVITATION_ACCEPTED':
-        return <Mail size={14} className="text-emerald-400" />
+        return <Mail className="h-3.5 w-3.5 text-emerald-400" />
       default:
-        return <Bell size={14} className="text-muted" />
+        return <Bell className="h-3.5 w-3.5 text-muted-foreground" />
     }
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose} style={{ justifyContent: 'flex-end', padding: 0 }}>
-      <div
-        className="modal-card"
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '400px',
-          maxWidth: '100vw',
-          height: '100vh',
-          maxHeight: '100vh',
-          borderRadius: 0,
-          borderLeft: '1px solid var(--border-muted)',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Bell size={16} className="text-blue-400" />
-            <h3 style={{ fontSize: '14px', fontWeight: 600 }}>Notifications & Activity</h3>
+    <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <SheetContent side="right" className="w-full sm:max-w-md p-0 flex flex-col">
+        <SheetHeader className="p-4 border-b border-border/80 shrink-0">
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4 text-primary" />
+            <SheetTitle className="text-base font-bold">Notifications & Feed</SheetTitle>
           </div>
-          <button className="btn-ghost btn-icon" onClick={onClose}>
-            <X size={16} />
-          </button>
-        </div>
+          <SheetDescription className="text-[12px]">
+            Real-time updates, issue activity, and project invitations.
+          </SheetDescription>
+        </SheetHeader>
 
-        {/* Tab switcher */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid var(--border-subtle)', background: 'var(--bg-surface)' }}>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            style={{
-              borderRadius: 0,
-              padding: '8px',
-              fontSize: '12px',
-              borderBottom: activeTab === 'NOTIFICATIONS' ? '2px solid var(--accent-primary)' : '2px solid transparent',
-              color: activeTab === 'NOTIFICATIONS' ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontWeight: 600,
-            }}
-            onClick={() => setActiveTab('NOTIFICATIONS')}
-          >
-            Notifications {unreadCount > 0 && `(${unreadCount})`}
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            style={{
-              borderRadius: 0,
-              padding: '8px',
-              fontSize: '12px',
-              borderBottom: activeTab === 'ACTIVITY' ? '2px solid var(--accent-primary)' : '2px solid transparent',
-              color: activeTab === 'ACTIVITY' ? 'var(--text-primary)' : 'var(--text-muted)',
-              fontWeight: 600,
-            }}
-            onClick={() => setActiveTab('ACTIVITY')}
-          >
-            Project Feed
-          </button>
-        </div>
-
-        {/* Action sub-bar */}
-        {activeTab === 'NOTIFICATIONS' && notifications.length > 0 && unreadCount > 0 && (
-          <div style={{ padding: '6px 12px', display: 'flex', justifyContent: 'flex-end', borderBottom: '1px solid var(--border-subtle)' }}>
+        {/* Tabs */}
+        <div className="p-3 border-b border-border/60 shrink-0 flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              className="btn btn-ghost"
-              style={{ fontSize: '11px', padding: '2px 6px', color: 'var(--accent-primary)' }}
-              onClick={handleMarkAllRead}
+              onClick={() => setActiveTab('NOTIFICATIONS')}
+              className={cn(
+                'px-2.5 py-1 rounded text-[12px] font-medium transition-colors cursor-pointer',
+                activeTab === 'NOTIFICATIONS'
+                  ? 'bg-primary/20 text-primary border border-primary/30'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
-              <CheckCheck size={12} /> Mark all read
+              Notifications {unreadCount > 0 && `(${unreadCount})`}
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('ACTIVITY')}
+              className={cn(
+                'px-2.5 py-1 rounded text-[12px] font-medium transition-colors cursor-pointer',
+                activeTab === 'ACTIVITY'
+                  ? 'bg-primary/20 text-primary border border-primary/30'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
+            >
+              Project Feed
             </button>
           </div>
-        )}
 
-        <div className="modal-body" style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+          {activeTab === 'NOTIFICATIONS' && notifications.length > 0 && unreadCount > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleMarkAllRead}
+              className="h-6 px-2 text-[11px] text-primary"
+            >
+              <CheckCheck className="h-3 w-3 mr-1" />
+              <span>Mark all read</span>
+            </Button>
+          )}
+        </div>
+
+        {/* Drawer Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2">
           {activeTab === 'NOTIFICATIONS' ? (
-            notifications.length === 0 ? (
-              <div className="empty-state py-8">
-                <Bell size={32} className="text-muted mb-2" />
-                <p className="text-xs text-muted">No notifications yet.</p>
+            loading ? (
+              <div className="py-12 text-center text-muted-foreground text-[12px]">
+                Loading notifications...
+              </div>
+            ) : notifications.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <Bell className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-[12.5px] font-medium text-foreground">All caught up!</p>
+                <p className="text-[11px] text-muted-foreground">No new notifications.</p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {notifications.map((notif) => (
+              notifications.map((notif) => (
+                <div
+                  key={notif.id}
+                  onClick={() => {
+                    if (!notif.is_read) handleMarkRead(notif.id)
+                    if (notif.notification_type === 'INVITATION' && onOpenInvitations) {
+                      onOpenInvitations()
+                      onClose()
+                    }
+                  }}
+                  className={cn(
+                    'p-3 rounded-md border text-[12px] transition-colors cursor-pointer space-y-1',
+                    notif.is_read
+                      ? 'border-border/50 bg-card/40'
+                      : 'border-primary/40 bg-primary/10 shadow-xs'
+                  )}
+                >
+                  <div className="flex items-start gap-2">
+                    <div className="mt-0.5 shrink-0">{getActionIcon(notif.notification_type)}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-foreground leading-snug">{notif.title}</p>
+                      <p className="text-muted-foreground text-[11.5px] mt-0.5 leading-snug">{notif.message}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1 font-mono">
+                        {formatRelativeTime(notif.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )
+          ) : (
+            activities.length === 0 ? (
+              <div className="py-12 text-center text-muted-foreground">
+                <ActivityIcon className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                <p className="text-[12.5px] font-medium text-foreground">No activity recorded</p>
+                <p className="text-[11px] text-muted-foreground">Events and audit logs will appear here.</p>
+              </div>
+            ) : (
+              activities.slice(0, 30).map((act) => {
+                const relatedIssue = issues.find((i) => i.id === act.issue_id)
+                return (
                   <div
-                    key={notif.id}
-                    className="card"
-                    style={{
-                      padding: '10px 12px',
-                      background: notif.is_read ? 'var(--bg-surface)' : 'rgba(59, 130, 246, 0.08)',
-                      borderLeft: notif.is_read ? '1px solid var(--border-subtle)' : '3px solid var(--accent-primary)',
-                      cursor: notif.notification_type === 'INVITATION' ? 'pointer' : 'default',
-                    }}
+                    key={act.id}
                     onClick={() => {
-                      if (!notif.is_read) handleMarkRead(notif.id)
-                      if (notif.notification_type === 'INVITATION' && onOpenInvitations) {
-                        onOpenInvitations()
+                      if (relatedIssue) {
+                        onSelectIssue(relatedIssue)
                         onClose()
                       }
                     }}
+                    className={cn(
+                      'p-2.5 rounded-md border border-border/60 bg-card/60 text-[12px] space-y-1 transition-colors',
+                      relatedIssue && 'hover:bg-muted/40 cursor-pointer'
+                    )}
                   >
-                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                      <div style={{ marginTop: '2px' }}>{getActionIcon(notif.notification_type)}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {notif.title}
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                          {notif.message}
-                        </div>
-                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                          {formatRelativeTime(notif.created_at)}
-                        </div>
+                    <div className="flex items-start gap-2">
+                      <div className="mt-0.5 shrink-0">{getActionIcon(act.action)}</div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-foreground leading-snug">
+                          <span className="font-semibold">{act.actor?.username || 'Member'}</span>{' '}
+                          <span className="text-muted-foreground">
+                            {act.action.replace('_', ' ').toLowerCase()}
+                          </span>
+                        </p>
+                        {relatedIssue && (
+                          <p className="text-primary font-mono text-[11px] truncate mt-0.5">
+                            {relatedIssue.identifier}: {relatedIssue.title}
+                          </p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground font-mono mt-1">
+                          {formatRelativeTime(act.created_at)}
+                        </p>
                       </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )
-          ) : (
-            /* Activity Feed Tab */
-            activities.length === 0 ? (
-              <div className="empty-state py-8">
-                <ActivityIcon size={32} className="text-muted mb-2" />
-                <p className="text-xs text-muted">No recent activity stream in this project yet.</p>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {activities.slice(0, 30).map((act) => {
-                  const relatedIssue = issues.find((i) => i.id === act.issue_id)
-                  return (
-                    <div
-                      key={act.id}
-                      className="card"
-                      style={{
-                        padding: '10px 12px',
-                        background: 'var(--bg-surface-raised)',
-                        cursor: relatedIssue ? 'pointer' : 'default',
-                      }}
-                      onClick={() => {
-                        if (relatedIssue) {
-                          onSelectIssue(relatedIssue)
-                          onClose()
-                        }
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-                        <div style={{ marginTop: '2px' }}>{getActionIcon(act.action)}</div>
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--text-primary)' }}>
-                            <strong>{act.actor?.username || 'Member'}</strong> {act.action.replace('_', ' ').toLowerCase()}
-                          </div>
-                          {relatedIssue && (
-                            <div style={{ fontSize: '11px', color: 'var(--accent-primary)', marginTop: '2px' }}>
-                              {relatedIssue.identifier}: {relatedIssue.title}
-                            </div>
-                          )}
-                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                            {formatRelativeTime(act.created_at)}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+                )
+              })
             )
           )}
         </div>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   )
 }

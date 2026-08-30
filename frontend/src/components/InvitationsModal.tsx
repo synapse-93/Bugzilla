@@ -1,8 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { Invitation, Project } from '../types'
 import { api } from '../api/client'
-import { X, Mail, Check, Ban, FolderGit2 } from 'lucide-react'
+import { Mail, Check, Ban, FolderGit2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from './ui/dialog'
+import { Button } from './ui/button'
+import { Card } from './ui/card'
 
 interface InvitationsModalProps {
   isOpen: boolean
@@ -60,103 +70,91 @@ export function InvitationsModal({ isOpen, onClose, onAccepted }: InvitationsMod
     }
   }
 
-  if (!isOpen) return null
-
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: '520px' }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <Mail size={18} className="text-blue-400" />
-            <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Project Invitations</h3>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-2 text-primary font-semibold">
+            <Mail className="h-4 w-4" />
+            <DialogTitle>Project Invitations</DialogTitle>
           </div>
-          <button className="btn-ghost btn-icon" onClick={onClose}>
-            <X size={16} />
-          </button>
-        </div>
+          <DialogDescription>
+            Collaborations and team invites sent to your account.
+          </DialogDescription>
+        </DialogHeader>
 
-        <div className="modal-body" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+        <div className="max-h-[360px] overflow-y-auto space-y-2.5 py-2">
           {loading ? (
-            <div className="empty-state py-6">
-              <p className="text-xs text-muted">Checking for invitations...</p>
+            <div className="py-8 text-center text-muted-foreground text-[12px]">
+              Checking for pending invitations...
             </div>
           ) : invitations.length === 0 ? (
-            <div className="empty-state py-8">
-              <Mail size={32} className="text-muted mb-2" />
-              <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
-                No Pending Invitations
-              </div>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                You have no pending project collaboration invites.
+            <div className="py-8 text-center text-muted-foreground">
+              <Mail className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-[13px] font-semibold text-foreground">No Pending Invitations</p>
+              <p className="text-[11.5px] text-muted-foreground mt-0.5">
+                You're all caught up! New invites from teammates will appear here.
               </p>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              {invitations.map((inv) => (
-                <div
-                  key={inv.id}
-                  className="card"
-                  style={{
-                    padding: '14px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '10px',
-                    background: 'var(--bg-surface-raised)',
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px' }}>
-                    <div style={{ display: 'flex', gap: '10px' }}>
-                      <div className="brand-icon" style={{ width: '32px', height: '32px', borderRadius: '6px' }}>
-                        <FolderGit2 size={16} />
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-primary)' }}>
-                          {inv.project_name} <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>({inv.project_key})</span>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>
-                          Invited by <strong>@{inv.inviter_username}</strong> as{' '}
-                          <span className="badge badge-info" style={{ fontSize: '9px', padding: '1px 5px' }}>
-                            {inv.role}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+            invitations.map((inv) => (
+              <Card key={inv.id} className="p-3.5 border-border/80 bg-card space-y-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center justify-center h-8 w-8 rounded-md bg-primary/10 border border-primary/20 text-primary shrink-0">
+                    <FolderGit2 className="h-4 w-4" />
                   </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-subtle)' }}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      style={{ padding: '4px 10px', fontSize: '11px' }}
-                      disabled={processingId === inv.id}
-                      onClick={() => handleDecline(inv.id)}
-                    >
-                      <Ban size={12} />
-                      Decline
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      style={{ padding: '4px 10px', fontSize: '11px' }}
-                      disabled={processingId === inv.id}
-                      onClick={() => handleAccept(inv.id)}
-                    >
-                      <Check size={12} />
-                      Accept & Join
-                    </button>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-bold text-foreground truncate">
+                      {inv.project_name}{' '}
+                      <span className="text-[11px] font-mono text-muted-foreground font-normal">
+                        ({inv.project_key})
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      Invited by <strong className="text-foreground">@{inv.inviter_username}</strong> as{' '}
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-mono bg-primary/15 text-primary border border-primary/20">
+                        {inv.role}
+                      </span>
+                    </p>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/50">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={processingId === inv.id}
+                    onClick={() => handleDecline(inv.id)}
+                    className="h-7 text-[11px]"
+                  >
+                    <Ban className="h-3 w-3 mr-1 text-muted-foreground" />
+                    <span>Decline</span>
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={processingId === inv.id}
+                    onClick={() => handleAccept(inv.id)}
+                    className="h-7 text-[11px] font-medium"
+                  >
+                    {processingId === inv.id ? (
+                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                    ) : (
+                      <Check className="h-3 w-3 mr-1" />
+                    )}
+                    <span>Accept & Join</span>
+                  </Button>
+                </div>
+              </Card>
+            ))
           )}
         </div>
 
-        <div className="modal-footer">
-          <button className="btn btn-secondary" onClick={onClose}>
+        <DialogFooter className="pt-2">
+          <Button variant="outline" size="sm" onClick={onClose} className="text-[12px]">
             Close
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }

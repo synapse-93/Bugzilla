@@ -1,9 +1,22 @@
 import React, { useState } from 'react'
 import { Milestone, Issue } from '../types'
 import { api } from '../api/client'
-import { Target, Plus, Calendar, CheckCircle, Clock, Trash2, X } from 'lucide-react'
+import { Target, Plus, Calendar, CheckCircle2, Clock, Trash2, Loader2 } from 'lucide-react'
 import { formatDate } from '../utils/helpers'
 import { toast } from 'sonner'
+import { Button } from './ui/button'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
+import { Input } from './ui/input'
+import { Textarea } from './ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from './ui/dialog'
+import { cn } from '@/lib/utils'
 
 interface MilestonesViewProps {
   projectId: number
@@ -54,42 +67,47 @@ export function MilestonesView({
     try {
       await api.milestones.delete(projectId, id)
       onDeleteMilestone(id)
+      toast.success('Milestone removed')
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete milestone')
     }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Header */}
-      <div className="card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="space-y-6 max-w-[1400px] w-full min-w-0">
+      {/* Top Banner */}
+      <Card className="border-border/80 bg-card p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text-primary)' }}>Project Milestones</h3>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-            Track project deliverables, releases, and completion goals.
+          <h2 className="text-lg font-bold text-foreground tracking-tight">Project Milestones</h2>
+          <p className="text-[12.5px] text-muted-foreground mt-0.5">
+            Track sprints, version releases, and deliverable completion targets.
           </p>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsCreateModalOpen(true)}>
-          <Plus size={15} />
+        <Button
+          size="sm"
+          onClick={() => setIsCreateModalOpen(true)}
+          className="gap-1.5 text-[12px] h-8 shrink-0"
+        >
+          <Plus className="h-3.5 w-3.5" />
           <span>New Milestone</span>
-        </button>
-      </div>
+        </Button>
+      </Card>
 
-      {/* Milestones Grid */}
+      {/* Grid of Milestones */}
       {milestones.length === 0 ? (
-        <div className="card empty-state py-12">
-          <Target size={40} className="text-muted mb-2" />
-          <div className="empty-state-title">No milestones set</div>
-          <p className="empty-state-desc">
-            Define version targets (e.g. v1.0, Sprint 1) to track group deliverables.
+        <Card className="p-12 text-center border-dashed">
+          <Target className="h-10 w-10 text-muted-foreground/60 mx-auto mb-3" />
+          <h3 className="text-sm font-semibold text-foreground">No milestones created</h3>
+          <p className="text-[12px] text-muted-foreground max-w-sm mx-auto mt-1 mb-4">
+            Group issues into sprints or releases to measure velocity and milestone health.
           </p>
-          <button className="btn btn-primary" onClick={() => setIsCreateModalOpen(true)}>
-            <Plus size={15} />
-            <span>Create First Milestone</span>
-          </button>
-        </div>
+          <Button size="sm" onClick={() => setIsCreateModalOpen(true)} className="gap-1 text-[12px]">
+            <Plus className="h-3.5 w-3.5" />
+            <span>Create Milestone</span>
+          </Button>
+        </Card>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: '16px' }}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {milestones.map((m) => {
             const milestoneIssues = issues.filter((i) => String(i.milestone_id) === String(m.id))
             const total = milestoneIssues.length > 0 ? milestoneIssues.length : (m.total_issues || 0)
@@ -97,48 +115,56 @@ export function MilestonesView({
               ? milestoneIssues.filter((i) => i.status === 'RESOLVED' || i.status === 'CLOSED').length
               : (m.closed_issues || 0)
             const progress = total > 0 ? Math.round((closed / total) * 100) : (m.progress || 0)
+            const isCompleted = progress === 100 || m.status === 'COMPLETED'
 
             return (
-              <div key={m.id} className="card" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <Target size={16} className="text-blue-400" />
-                      <span style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)' }}>{m.name}</span>
+              <Card key={m.id} className="border-border/80 bg-card p-4 space-y-3 flex flex-col justify-between">
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Target className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
+                      <h3 className="font-semibold text-[13.5px] text-foreground truncate">{m.name}</h3>
                     </div>
-                    <button className="btn-ghost btn-icon text-danger" onClick={() => handleDelete(m.id)}>
-                      <Trash2 size={14} />
-                    </button>
+                    <Button
+                      variant="ghost"
+                      size="iconSm"
+                      onClick={() => handleDelete(m.id)}
+                      className="text-muted-foreground hover:text-destructive hover:bg-destructive/10 h-6 w-6 shrink-0"
+                      title="Delete milestone"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
                   </div>
 
                   {m.description && (
-                    <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '14px' }}>
-                      {m.description}
-                    </p>
+                    <p className="text-[12px] text-muted-foreground line-clamp-2">{m.description}</p>
                   )}
-
-                  {/* Progress Bar */}
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
-                      <span>Progress</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{progress}%</span>
-                    </div>
-                    <div style={{ width: '100%', height: '6px', backgroundColor: 'var(--bg-surface-raised)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${progress}%`, height: '100%', backgroundColor: 'var(--accent-primary)', borderRadius: '3px' }} />
-                    </div>
-                  </div>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid var(--border-subtle)', fontSize: '11px', color: 'var(--text-muted)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Calendar size={13} />
-                    <span>Due: {m.due_date ? formatDate(m.due_date) : 'No due date'}</span>
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-muted-foreground font-medium">Progress</span>
+                    <span className="font-mono font-semibold text-foreground">{closed}/{total} issues ({progress}%)</span>
                   </div>
-                  <div>
-                    {closed}/{total} issues closed
+
+                  <div className="w-full h-1.5 bg-muted/60 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full rounded-full transition-all duration-300',
+                        isCompleted ? 'bg-emerald-500' : 'bg-primary'
+                      )}
+                      style={{ width: `${progress}%` }}
+                    />
                   </div>
+
+                  {m.due_date && (
+                    <div className="flex items-center gap-1.5 text-[10.5px] text-muted-foreground pt-1">
+                      <Calendar className="h-3 w-3" />
+                      <span>Due {formatDate(m.due_date)}</span>
+                    </div>
+                  )}
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>
@@ -146,63 +172,66 @@ export function MilestonesView({
 
       {/* Create Milestone Modal */}
       {isCreateModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsCreateModalOpen(false)}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Create New Milestone</h3>
-              <button className="btn-ghost btn-icon" onClick={() => setIsCreateModalOpen(false)}>
-                <X size={16} />
-              </button>
-            </div>
+        <Dialog open onOpenChange={(open) => !open && setIsCreateModalOpen(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <div className="flex items-center gap-2 text-primary font-semibold">
+                <Target className="h-4 w-4" />
+                <DialogTitle>New Milestone</DialogTitle>
+              </div>
+              <DialogDescription>
+                Define a sprint iteration or release target.
+              </DialogDescription>
+            </DialogHeader>
 
-            <form onSubmit={handleCreate}>
-              <div className="modal-body">
-                <div className="form-group">
-                  <label className="form-label">Milestone Name *</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="e.g. v1.0.0 or Q3 Sprint"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    required
-                    autoFocus
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Description</label>
-                  <textarea
-                    className="form-textarea"
-                    placeholder="Key objectives and deliverable targets..."
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Target Due Date</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={dueDate}
-                    onChange={(e) => setDueDate(e.target.value)}
-                  />
-                </div>
+            <form onSubmit={handleCreate} className="space-y-3.5 pt-2">
+              <div className="space-y-1">
+                <label className="text-[12px] font-medium text-foreground">Name *</label>
+                <Input
+                  type="text"
+                  placeholder="e.g. v1.2 Release, Sprint 4"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                  autoFocus
+                />
               </div>
 
-              <div className="modal-footer">
-                <button className="btn btn-secondary" type="button" onClick={() => setIsCreateModalOpen(false)}>
+              <div className="space-y-1">
+                <label className="text-[12px] font-medium text-foreground">Description</label>
+                <Textarea
+                  placeholder="Goals and scope for this milestone..."
+                  rows={3}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[12px] font-medium text-foreground">Due Date</label>
+                <Input
+                  type="date"
+                  value={dueDate}
+                  onChange={(e) => setDueDate(e.target.value)}
+                />
+              </div>
+
+              <DialogFooter className="pt-2 gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCreateModalOpen(false)}
+                >
                   Cancel
-                </button>
-                <button className="btn btn-primary" type="submit" disabled={loading || !name.trim()}>
-                  {loading ? 'Creating...' : 'Create Milestone'}
-                </button>
-              </div>
+                </Button>
+                <Button type="submit" size="sm" disabled={loading || !name.trim()}>
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Create Milestone'}
+                </Button>
+              </DialogFooter>
             </form>
-          </div>
-        </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   )

@@ -1,7 +1,25 @@
 import React, { useState } from 'react'
-import { Issue, Label, IssueStatus, PriorityLevel, ProjectMember } from '../types'
-import { Search, Filter, ArrowUpDown, Plus, CheckSquare, X, Tag, User as UserIcon } from 'lucide-react'
-import { getIssueDisplayIdentifier, formatRelativeTime, getStatusColor, getPriorityColor, getStatusLabel } from '../utils/helpers'
+import { Issue, Label, ProjectMember } from '../types'
+import {
+  Search,
+  ArrowUpDown,
+  Plus,
+  CheckSquare,
+  X,
+  User as UserIcon,
+  Tag as TagIcon,
+  Filter,
+} from 'lucide-react'
+import { getIssueDisplayIdentifier, formatRelativeTime } from '../utils/helpers'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Card, CardContent } from './ui/card'
+import { StatusBadge } from './StatusBadge'
+import { SeverityBadge } from './SeverityBadge'
+import { PriorityBadge } from './PriorityBadge'
+import { TypeBadge } from './TypeBadge'
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
+import { cn } from '@/lib/utils'
 
 interface IssueListProps {
   issues: Issue[]
@@ -132,29 +150,27 @@ export function IssueList({
   const hasActiveFilters = Boolean(searchQuery || statusFilter || priorityFilter || assigneeFilter || labelFilter)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Search & Filter Bar */}
-      <div className="card" style={{ padding: '12px 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginBottom: '12px' }}>
+    <div className="space-y-4 max-w-[1400px] w-full min-w-0">
+      {/* Search & Filters Card */}
+      <Card className="border-border/80 bg-card p-3 space-y-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* Search Input */}
-          <div style={{ position: 'relative', flex: '1', minWidth: '220px' }}>
-            <Search size={15} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--text-muted)' }} />
-            <input
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
               type="text"
-              className="form-input"
-              style={{ paddingLeft: '32px' }}
               placeholder="Search issues by title or description..."
               value={searchQuery}
               onChange={(e) => handleSearchChange(e.target.value)}
+              className="pl-8 h-8 text-[12.5px] bg-background/50"
             />
           </div>
 
-          {/* Status Filter */}
+          {/* Status Dropdown */}
           <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: '130px' }}
             value={statusFilter}
             onChange={(e) => handleStatusChange(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background/50 px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
           >
             <option value="">All Statuses</option>
             <option value="OPEN">Open</option>
@@ -164,12 +180,11 @@ export function IssueList({
             <option value="CLOSED">Closed</option>
           </select>
 
-          {/* Priority Filter */}
+          {/* Priority Dropdown */}
           <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: '130px' }}
             value={priorityFilter}
             onChange={(e) => handlePriorityChange(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background/50 px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
           >
             <option value="">All Priorities</option>
             <option value="URGENT">Urgent</option>
@@ -178,27 +193,25 @@ export function IssueList({
             <option value="LOW">Low</option>
           </select>
 
-          {/* Assignee Filter */}
+          {/* Assignee Dropdown */}
           <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: '140px' }}
             value={assigneeFilter}
             onChange={(e) => handleAssigneeChange(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background/50 px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
           >
             <option value="">All Assignees</option>
             {members.map((m) => (
               <option key={m.user_id} value={String(m.user_id)}>
-                {m.user?.username || `User ${m.user_id}`}
+                {m.user?.display_name || m.user?.username || `User ${m.user_id}`}
               </option>
             ))}
           </select>
 
-          {/* Label Filter */}
+          {/* Label Dropdown */}
           <select
-            className="form-select"
-            style={{ width: 'auto', minWidth: '130px' }}
             value={labelFilter}
             onChange={(e) => handleLabelChange(e.target.value)}
+            className="h-8 rounded-md border border-input bg-background/50 px-2 text-[12px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer shrink-0"
           >
             <option value="">All Labels</option>
             {labels.map((l) => (
@@ -208,24 +221,33 @@ export function IssueList({
             ))}
           </select>
 
-          {/* Clear Filters */}
+          {/* Reset Filters Button */}
           {hasActiveFilters && (
-            <button className="btn btn-ghost" onClick={clearAllFilters} title="Clear filters">
-              <X size={14} />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearAllFilters}
+              className="h-8 px-2 text-[12px] text-muted-foreground hover:text-foreground"
+            >
+              <X className="h-3.5 w-3.5 mr-1" />
               <span>Reset</span>
-            </button>
+            </Button>
           )}
 
-          {/* New Issue Button */}
-          <button className="btn btn-primary" onClick={onOpenCreateIssue}>
-            <Plus size={15} />
+          {/* New Issue Action */}
+          <Button
+            size="sm"
+            onClick={onOpenCreateIssue}
+            className="h-8 text-[12px] gap-1 font-medium ml-auto shrink-0"
+          >
+            <Plus className="h-3.5 w-3.5" />
             <span>New Issue</span>
-          </button>
+          </Button>
         </div>
 
-        {/* Saved Filter Presets */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', fontSize: '12px' }}>
-          <span style={{ color: 'var(--text-muted)', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' }}>
+        {/* Filter Presets Row */}
+        <div className="flex items-center gap-1.5 flex-wrap pt-1 border-t border-border/40">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mr-1">
             Presets:
           </span>
           {[
@@ -236,160 +258,195 @@ export function IssueList({
           ].map((preset) => (
             <button
               key={preset.key}
-              className={`btn btn-sm ${activeSavedFilter === preset.key ? 'btn-primary' : 'btn-secondary'}`}
-              style={{ padding: '3px 10px', fontSize: '11px', borderRadius: '9999px' }}
+              type="button"
               onClick={() => handleSavedFilterSelect(preset.key)}
+              className={cn(
+                'px-2.5 py-0.5 rounded-full text-[11px] font-medium transition-colors cursor-pointer',
+                activeSavedFilter === preset.key
+                  ? 'bg-primary text-primary-foreground shadow-xs'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/50'
+              )}
             >
               {preset.label}
             </button>
           ))}
         </div>
-      </div>
+      </Card>
 
-      {/* Issues Table */}
-      <div className="issue-table-container">
-        {/* Table Header */}
-        <div className="issue-table-header">
-          <div style={{ width: '110px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => handleSortChange('issue_number')}>
-            <span>ID</span>
-            <ArrowUpDown size={12} />
-          </div>
-          <div style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => handleSortChange('title')}>
-            <span>Title</span>
-            <ArrowUpDown size={12} />
-          </div>
-          <div style={{ width: '130px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => handleSortChange('status')}>
-            <span>Status</span>
-            <ArrowUpDown size={12} />
-          </div>
-          <div style={{ width: '110px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => handleSortChange('priority')}>
-            <span>Priority</span>
-            <ArrowUpDown size={12} />
-          </div>
-          <div style={{ width: '140px' }}>Assignee</div>
-          <div style={{ width: '120px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }} onClick={() => handleSortChange('updated_at')}>
-            <span>Updated</span>
-            <ArrowUpDown size={12} />
-          </div>
-        </div>
-
-        {/* Table Rows */}
-        {loading ? (
-          <div style={{ padding: '32px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Loading issues...
-          </div>
-        ) : issues.length === 0 ? (
-          <div className="empty-state">
-            <CheckSquare size={36} className="text-muted mb-2" />
-            <div className="empty-state-title">No issues found</div>
-            <p className="empty-state-desc">
-              {hasActiveFilters
-                ? 'No issues match the active filter criteria. Try resetting filters.'
-                : 'Get started by creating your first issue in this project.'}
-            </p>
-            {hasActiveFilters ? (
-              <button className="btn btn-secondary" onClick={clearAllFilters}>
-                Clear Filters
-              </button>
-            ) : (
-              <button className="btn btn-primary" onClick={onOpenCreateIssue}>
-                <Plus size={15} />
-                <span>Create Issue</span>
-              </button>
-            )}
-          </div>
-        ) : (
-          issues.map((issue) => {
-            const statusStyles = getStatusColor(issue.status)
-            const priorityStyles = getPriorityColor(issue.priority)
-            return (
-              <div
-                key={issue.id}
-                className="issue-row"
-                onClick={() => onSelectIssue(issue)}
-              >
-                <div style={{ width: '110px' }}>
-                  <span className="issue-identifier-tag">
-                    {getIssueDisplayIdentifier(issue.identifier)}
-                  </span>
-                </div>
-
-                <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-                  <span style={{ fontWeight: 500, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {issue.title}
-                  </span>
-                  {issue.labels && issue.labels.length > 0 && (
-                    <div style={{ display: 'flex', gap: '4px', flexWrap: 'nowrap' }}>
-                      {issue.labels.slice(0, 3).map((lbl) => (
-                        <span
-                          key={lbl.id}
-                          className="label-chip"
-                          style={{
-                            backgroundColor: `${lbl.color}20`,
-                            color: lbl.color,
-                            border: `1px solid ${lbl.color}40`,
-                          }}
-                        >
-                          {lbl.name}
-                        </span>
-                      ))}
-                      {issue.labels.length > 3 && (
-                        <span className="label-chip" style={{ background: 'var(--bg-surface-hover)', color: 'var(--text-muted)' }}>
-                          +{issue.labels.length - 3}
-                        </span>
+      {/* Issues Table Container */}
+      <Card className="border-border/80 bg-card overflow-hidden">
+        <div className="w-full overflow-x-auto">
+          <table className="w-full min-w-[700px] text-[12.5px] border-collapse text-left">
+            <thead>
+              <tr className="border-b border-border bg-muted/30 text-muted-foreground font-medium text-[11px] uppercase tracking-wider select-none">
+                <th
+                  onClick={() => handleSortChange('issue_number')}
+                  className="px-3.5 py-2.5 w-24 cursor-pointer hover:text-foreground transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>ID</span>
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSortChange('title')}
+                  className="px-3.5 py-2.5 cursor-pointer hover:text-foreground transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Title</span>
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSortChange('status')}
+                  className="px-3.5 py-2.5 w-32 cursor-pointer hover:text-foreground transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Status</span>
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th
+                  onClick={() => handleSortChange('priority')}
+                  className="px-3.5 py-2.5 w-28 cursor-pointer hover:text-foreground transition-colors"
+                >
+                  <div className="flex items-center gap-1">
+                    <span>Priority</span>
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+                <th className="px-3.5 py-2.5 w-36">Assignee</th>
+                <th
+                  onClick={() => handleSortChange('updated_at')}
+                  className="px-3.5 py-2.5 w-28 cursor-pointer hover:text-foreground transition-colors text-right"
+                >
+                  <div className="flex items-center justify-end gap-1">
+                    <span>Updated</span>
+                    <ArrowUpDown className="h-3 w-3" />
+                  </div>
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-muted-foreground">
+                    Loading issues...
+                  </td>
+                </tr>
+              ) : issues.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center">
+                    <div className="flex flex-col items-center justify-center max-w-sm mx-auto space-y-2">
+                      <CheckSquare className="h-8 w-8 text-muted-foreground/60 mb-1" />
+                      <p className="text-[13px] font-semibold text-foreground">No issues found</p>
+                      <p className="text-[11.5px] text-muted-foreground">
+                        {hasActiveFilters
+                          ? 'No issues match the active filter criteria. Try resetting filters.'
+                          : 'Get started by creating your first issue in this project.'}
+                      </p>
+                      {hasActiveFilters ? (
+                        <Button variant="outline" size="sm" onClick={clearAllFilters} className="mt-2 text-[12px]">
+                          Clear Filters
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={onOpenCreateIssue} className="mt-2 text-[12px] gap-1">
+                          <Plus className="h-3.5 w-3.5" />
+                          <span>Create Issue</span>
+                        </Button>
                       )}
                     </div>
-                  )}
-                </div>
-
-                <div style={{ width: '130px' }}>
-                  <span
-                    className="badge-pill"
-                    style={{
-                      backgroundColor: statusStyles.bg,
-                      color: statusStyles.text,
-                      borderColor: statusStyles.border,
-                    }}
+                  </td>
+                </tr>
+              ) : (
+                issues.map((issue) => (
+                  <tr
+                    key={issue.id}
+                    onClick={() => onSelectIssue(issue)}
+                    className="border-b border-border/50 hover:bg-muted/30 transition-colors cursor-pointer group"
                   >
-                    <span className="badge-dot" style={{ backgroundColor: statusStyles.dot }} />
-                    <span>{getStatusLabel(issue.status)}</span>
-                  </span>
-                </div>
+                    {/* Identifier */}
+                    <td className="px-3.5 py-2.5 font-mono text-[11px] font-medium text-primary">
+                      {getIssueDisplayIdentifier(issue.identifier)}
+                    </td>
 
-                <div style={{ width: '110px' }}>
-                  <span
-                    className="badge-pill"
-                    style={{
-                      backgroundColor: priorityStyles.bg,
-                      color: priorityStyles.text,
-                      borderColor: priorityStyles.border,
-                    }}
-                  >
-                    {issue.priority}
-                  </span>
-                </div>
-
-                <div style={{ width: '140px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  {issue.assignee ? (
-                    <>
-                      <div className="user-avatar" style={{ width: '20px', height: '20px', fontSize: '10px' }}>
-                        {issue.assignee.username.substring(0, 2)}
+                    {/* Title & Labels */}
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <TypeBadge type={issue.issue_type} showLabel={false} />
+                        <span className="font-medium text-foreground group-hover:text-primary transition-colors line-clamp-1">
+                          {issue.title}
+                        </span>
+                        {issue.labels && issue.labels.length > 0 && (
+                          <div className="flex items-center gap-1">
+                            {issue.labels.slice(0, 3).map((lbl) => (
+                              <span
+                                key={lbl.id}
+                                className="px-1.5 py-0.2 rounded text-[10px] font-medium border"
+                                style={{
+                                  backgroundColor: `${lbl.color}15`,
+                                  color: lbl.color,
+                                  borderColor: `${lbl.color}40`,
+                                }}
+                              >
+                                {lbl.name}
+                              </span>
+                            ))}
+                            {issue.labels.length > 3 && (
+                              <span className="text-[10px] text-muted-foreground font-mono">
+                                +{issue.labels.length - 3}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{issue.assignee.username}</span>
-                    </>
-                  ) : (
-                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Unassigned</span>
-                  )}
-                </div>
+                    </td>
 
-                <div style={{ width: '120px', fontSize: '12px', color: 'var(--text-muted)' }}>
-                  {formatRelativeTime(issue.updated_at || issue.created_at)}
-                </div>
-              </div>
-            )
-          })
-        )}
-      </div>
+                    {/* Status */}
+                    <td className="px-3.5 py-2.5">
+                      <StatusBadge status={issue.status} />
+                    </td>
+
+                    {/* Priority / Severity */}
+                    <td className="px-3.5 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <SeverityBadge severity={issue.severity} showLabel={false} />
+                        <PriorityBadge priority={issue.priority} />
+                      </div>
+                    </td>
+
+                    {/* Assignee */}
+                    <td className="px-3.5 py-2.5">
+                      {issue.assignee ? (
+                        <div className="flex items-center gap-1.5">
+                          <Avatar className="h-5 w-5">
+                            {issue.assignee.avatar_url && (
+                              <AvatarImage src={issue.assignee.avatar_url} alt={issue.assignee.username} />
+                            )}
+                            <AvatarFallback className="text-[9px] font-bold bg-primary/20 text-primary">
+                              {issue.assignee.username.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <span className="text-[12px] text-foreground truncate max-w-[100px]">
+                            {issue.assignee.display_name || issue.assignee.username}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[11.5px] text-muted-foreground">Unassigned</span>
+                      )}
+                    </td>
+
+                    {/* Updated */}
+                    <td className="px-3.5 py-2.5 text-right font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                      {formatRelativeTime(issue.updated_at || issue.created_at)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
     </div>
   )
 }

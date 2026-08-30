@@ -1,31 +1,171 @@
-* {
-  box-sizing: border-box;
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 6% 6%;
+    --foreground: 0 0% 92%;
+
+    --card: 240 5% 9%;
+    --card-foreground: 0 0% 92%;
+
+    --popover: 240 5% 9%;
+    --popover-foreground: 0 0% 92%;
+
+    --primary: 234 65% 62%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 240 4% 14%;
+    --secondary-foreground: 0 0% 90%;
+
+    --muted: 240 4% 14%;
+    --muted-foreground: 0 0% 55%;
+
+    --accent: 240 4% 14%;
+    --accent-foreground: 0 0% 90%;
+
+    --destructive: 345 90% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 145 80% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 95% 52%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 199 90% 52%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 240 4% 20%;
+    --input: 240 4% 20%;
+    --ring: 234 65% 62%;
+
+    --radius: 0.375rem;
+
+    --sidebar-background: 240 6% 5%;
+    --sidebar-foreground: 0 0% 60%;
+    --sidebar-primary: 234 65% 62%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 11%;
+    --sidebar-accent-foreground: 0 0% 90%;
+    --sidebar-border: 240 4% 18%;
+    --sidebar-ring: 234 65% 62%;
+
+    --severity-critical: 345 90% 60%;
+    --severity-high: 25 95% 55%;
+    --severity-medium: 38 95% 52%;
+    --severity-low: 145 80% 45%;
+  }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 9%;
+
+    --primary: 234 55% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 96%;
+    --secondary-foreground: 0 0% 9%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 0 0% 96%;
+    --accent-foreground: 0 0% 9%;
+
+    --destructive: 345 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 70% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 234 55% 58%;
+
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 0 0% 40%;
+    --sidebar-primary: 234 55% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 0 0% 94%;
+    --sidebar-accent-foreground: 0 0% 9%;
+    --sidebar-border: 0 0% 92%;
+    --sidebar-ring: 234 55% 58%;
+
+    --severity-critical: 345 72% 51%;
+    --severity-high: 25 95% 53%;
+    --severity-medium: 38 92% 50%;
+    --severity-low: 142 70% 40%;
+  }
 }
 
-html,
-body,
-#root {
-  min-width: 100%;
-  min-height: 100%;
-  margin: 0;
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    color-scheme: dark;
+    background-color: hsl(240 6% 6%);
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Geist', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    font-size: 13px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-medium tracking-tight;
+  }
 }
 
-button,
-input,
-textarea,
-select {
-  font: inherit;
+/* Custom minimal scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground));
 }
 
-code {
-  padding: 2px 6px;
-  border-radius: 6px;
-  background: #1a2027;
-  color: #d9e0e8;
-}
-
-@media (max-width: 560px) {
-  h1 {
-    font-size: 34px !important;
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
   }
 }

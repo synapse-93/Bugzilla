@@ -1,8 +1,20 @@
 import React, { useState } from 'react'
 import { Issue, Label, ProjectMember, IssueType, PriorityLevel, SeverityLevel } from '../types'
 import { api } from '../api/client'
-import { X, PlusCircle, Bug, Sparkles, CheckSquare, TrendingUp } from 'lucide-react'
+import { PlusCircle, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from './ui/dialog'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Textarea } from './ui/textarea'
+import { cn } from '@/lib/utils'
 
 interface CreateIssueModalProps {
   projectId: number
@@ -60,144 +72,164 @@ export function CreateIssueModal({
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" style={{ maxWidth: '620px' }} onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <PlusCircle size={18} className="text-blue-400" />
-            <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Create New Issue</h3>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-2 text-primary font-semibold">
+            <PlusCircle className="h-4 w-4" />
+            <DialogTitle>Create New Issue</DialogTitle>
           </div>
-          <button className="btn-ghost btn-icon" onClick={onClose}>
-            <X size={16} />
-          </button>
-        </div>
+          <DialogDescription>
+            Report a bug, submit a feature request, or create a development task.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Issue Title *</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="e.g. Fix authentication redirect on expired token"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Description</label>
-              <textarea
-                className="form-textarea"
-                placeholder="Steps to reproduce, expected behavior, logs..."
-                rows={4}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
-
-            {/* Properties Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Issue Type</label>
-                <select
-                  className="form-select"
-                  value={issueType}
-                  onChange={(e) => setIssueType(e.target.value as IssueType)}
-                >
-                  <option value="BUG">Bug</option>
-                  <option value="FEATURE">Feature</option>
-                  <option value="TASK">Task</option>
-                  <option value="IMPROVEMENT">Improvement</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Assignee</label>
-                <select
-                  className="form-select"
-                  value={assigneeId}
-                  onChange={(e) => setAssigneeId(e.target.value)}
-                >
-                  <option value="">Unassigned</option>
-                  {members.map((m) => (
-                    <option key={m.user_id} value={String(m.user_id)}>
-                      {m.user?.username || `User ${m.user_id}`}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Priority</label>
-                <select
-                  className="form-select"
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as PriorityLevel)}
-                >
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="URGENT">Urgent</option>
-                </select>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Severity</label>
-                <select
-                  className="form-select"
-                  value={severity}
-                  onChange={(e) => setSeverity(e.target.value as SeverityLevel)}
-                >
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="CRITICAL">Critical</option>
-                </select>
-              </div>
-            </div>
-
-            {/* Labels Selection */}
-            {labels.length > 0 && (
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Labels</label>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {labels.map((lbl) => {
-                    const isSelected = selectedLabelIds.includes(lbl.id)
-                    return (
-                      <button
-                        key={lbl.id}
-                        type="button"
-                        className="label-chip"
-                        style={{
-                          backgroundColor: isSelected ? `${lbl.color}30` : 'var(--bg-surface-raised)',
-                          color: isSelected ? lbl.color : 'var(--text-muted)',
-                          border: isSelected ? `1px solid ${lbl.color}` : '1px solid var(--border-subtle)',
-                          cursor: 'pointer',
-                        }}
-                        onClick={() => handleToggleLabel(lbl.id)}
-                      >
-                        {lbl.name}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          {/* Title */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">
+              Title <span className="text-destructive">*</span>
+            </label>
+            <Input
+              type="text"
+              placeholder="e.g. Fix auth redirect on expired JWT token"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              autoFocus
+              className="text-[13px]"
+            />
           </div>
 
-          <div className="modal-footer">
-            <button className="btn btn-secondary" type="button" onClick={onClose}>
+          {/* Description */}
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">
+              Description
+            </label>
+            <Textarea
+              placeholder="Steps to reproduce, expected vs actual behavior, logs or context..."
+              rows={4}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="text-[13px] resize-y"
+            />
+          </div>
+
+          {/* Configuration Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {/* Issue Type */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Type</label>
+              <select
+                value={issueType}
+                onChange={(e) => setIssueType(e.target.value as IssueType)}
+                className="w-full h-8 rounded-md border border-input bg-background/50 px-2.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              >
+                <option value="BUG">Bug</option>
+                <option value="FEATURE">Feature</option>
+                <option value="TASK">Task</option>
+                <option value="IMPROVEMENT">Improvement</option>
+              </select>
+            </div>
+
+            {/* Assignee */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Assignee</label>
+              <select
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="w-full h-8 rounded-md border border-input bg-background/50 px-2.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => (
+                  <option key={m.user_id} value={String(m.user_id)}>
+                    {m.user?.display_name || m.user?.username || `User ${m.user_id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Priority */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Priority</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as PriorityLevel)}
+                className="w-full h-8 rounded-md border border-input bg-background/50 px-2.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="URGENT">Urgent</option>
+              </select>
+            </div>
+
+            {/* Severity */}
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Severity</label>
+              <select
+                value={severity}
+                onChange={(e) => setSeverity(e.target.value as SeverityLevel)}
+                className="w-full h-8 rounded-md border border-input bg-background/50 px-2.5 text-[12.5px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring cursor-pointer"
+              >
+                <option value="LOW">Low</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="HIGH">High</option>
+                <option value="CRITICAL">Critical</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Labels Selection */}
+          {labels.length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Labels</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {labels.map((lbl) => {
+                  const isSelected = selectedLabelIds.includes(lbl.id)
+                  return (
+                    <button
+                      key={lbl.id}
+                      type="button"
+                      onClick={() => handleToggleLabel(lbl.id)}
+                      className={cn(
+                        'px-2 py-0.5 rounded text-[11px] font-medium transition-all border cursor-pointer',
+                        isSelected
+                          ? 'border-primary bg-primary/20 text-primary shadow-xs'
+                          : 'border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60'
+                      )}
+                      style={isSelected ? { borderColor: lbl.color, color: lbl.color, backgroundColor: `${lbl.color}20` } : {}}
+                    >
+                      {lbl.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="pt-3 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="text-[12px]"
+            >
               Cancel
-            </button>
-            <button className="btn btn-primary" type="submit" disabled={loading || !title.trim()}>
-              {loading ? 'Creating...' : 'Create Issue'}
-            </button>
-          </div>
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={loading || !title.trim()}
+              className="text-[12px] gap-1.5 font-medium"
+            >
+              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <span>Create Issue</span>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

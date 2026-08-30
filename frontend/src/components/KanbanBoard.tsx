@@ -9,15 +9,17 @@ import {
   DragStartEvent,
   DragEndEvent,
   useDroppable,
+  useDraggable,
 } from '@dnd-kit/core'
-import { useDraggable } from '@dnd-kit/core'
-import {
-  getIssueDisplayIdentifier,
-  getStatusColor,
-  getPriorityColor,
-  getStatusLabel,
-} from '../utils/helpers'
-import { Plus, ArrowRight, Play, CheckCircle, RotateCcw, Eye } from 'lucide-react'
+import { getIssueDisplayIdentifier } from '../utils/helpers'
+import { StatusBadge } from './StatusBadge'
+import { SeverityBadge } from './SeverityBadge'
+import { PriorityBadge } from './PriorityBadge'
+import { TypeBadge } from './TypeBadge'
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
+import { Button } from './ui/button'
+import { Play, Eye, CheckCircle2, RotateCcw, Check, Plus } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 interface KanbanBoardProps {
   issues: Issue[]
@@ -26,15 +28,14 @@ interface KanbanBoardProps {
   onOpenCreateIssue?: () => void
 }
 
-const COLUMNS: { id: IssueStatus; title: string; color: string }[] = [
-  { id: 'OPEN', title: 'Open', color: '#60a5fa' },
-  { id: 'IN_PROGRESS', title: 'In Progress', color: '#facc15' },
-  { id: 'IN_REVIEW', title: 'In Review', color: '#c084fc' },
-  { id: 'RESOLVED', title: 'Resolved', color: '#4ade80' },
-  { id: 'CLOSED', title: 'Closed', color: '#a1a1aa' },
+const COLUMNS: { id: IssueStatus; title: string; color: string; dotClass: string }[] = [
+  { id: 'OPEN', title: 'Open', color: '#38bdf8', dotClass: 'bg-sky-400' },
+  { id: 'IN_PROGRESS', title: 'In Progress', color: '#fbbf24', dotClass: 'bg-amber-400' },
+  { id: 'IN_REVIEW', title: 'In Review', color: '#c084fc', dotClass: 'bg-purple-400' },
+  { id: 'RESOLVED', title: 'Resolved', color: '#4ade80', dotClass: 'bg-emerald-400' },
+  { id: 'CLOSED', title: 'Closed', color: '#71717a', dotClass: 'bg-zinc-500' },
 ]
 
-// Draggable Issue Card Component
 function KanbanCard({
   issue,
   onSelectIssue,
@@ -58,22 +59,20 @@ function KanbanCard({
       }
     : undefined
 
-  const priorityStyles = getPriorityColor(issue.priority)
-
   const renderQuickAction = () => {
     if (!onUpdateStatus) return null
     if (issue.status === 'OPEN') {
       return (
         <button
-          className="btn btn-ghost"
-          style={{ padding: '2px 6px', fontSize: '10px', color: '#facc15' }}
-          title="Move to In Progress"
+          type="button"
           onClick={(e) => {
             e.stopPropagation()
             onUpdateStatus(issue, 'IN_PROGRESS')
           }}
+          className="flex items-center gap-1 text-[10px] text-amber-400 hover:bg-amber-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          title="Move to In Progress"
         >
-          <Play size={10} />
+          <Play className="h-2.5 w-2.5" />
           <span>Start</span>
         </button>
       )
@@ -81,15 +80,15 @@ function KanbanCard({
     if (issue.status === 'IN_PROGRESS') {
       return (
         <button
-          className="btn btn-ghost"
-          style={{ padding: '2px 6px', fontSize: '10px', color: '#c084fc' }}
-          title="Move to In Review"
+          type="button"
           onClick={(e) => {
             e.stopPropagation()
             onUpdateStatus(issue, 'IN_REVIEW')
           }}
+          className="flex items-center gap-1 text-[10px] text-purple-400 hover:bg-purple-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          title="Move to In Review"
         >
-          <Eye size={10} />
+          <Eye className="h-2.5 w-2.5" />
           <span>Review</span>
         </button>
       )
@@ -97,15 +96,15 @@ function KanbanCard({
     if (issue.status === 'IN_REVIEW') {
       return (
         <button
-          className="btn btn-ghost"
-          style={{ padding: '2px 6px', fontSize: '10px', color: '#4ade80' }}
-          title="Mark as Resolved"
+          type="button"
           onClick={(e) => {
             e.stopPropagation()
             onUpdateStatus(issue, 'RESOLVED')
           }}
+          className="flex items-center gap-1 text-[10px] text-emerald-400 hover:bg-emerald-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          title="Mark as Resolved"
         >
-          <CheckCircle size={10} />
+          <CheckCircle2 className="h-2.5 w-2.5" />
           <span>Resolve</span>
         </button>
       )
@@ -113,14 +112,15 @@ function KanbanCard({
     if (issue.status === 'RESOLVED') {
       return (
         <button
-          className="btn btn-ghost"
-          style={{ padding: '2px 6px', fontSize: '10px', color: '#a1a1aa' }}
-          title="Close Issue"
+          type="button"
           onClick={(e) => {
             e.stopPropagation()
             onUpdateStatus(issue, 'CLOSED')
           }}
+          className="flex items-center gap-1 text-[10px] text-zinc-400 hover:bg-zinc-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          title="Close Issue"
         >
+          <Check className="h-2.5 w-2.5" />
           <span>Close</span>
         </button>
       )
@@ -128,15 +128,15 @@ function KanbanCard({
     if (issue.status === 'CLOSED') {
       return (
         <button
-          className="btn btn-ghost"
-          style={{ padding: '2px 6px', fontSize: '10px', color: '#60a5fa' }}
-          title="Reopen Issue"
+          type="button"
           onClick={(e) => {
             e.stopPropagation()
             onUpdateStatus(issue, 'OPEN')
           }}
+          className="flex items-center gap-1 text-[10px] text-sky-400 hover:bg-sky-400/10 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+          title="Reopen Issue"
         >
-          <RotateCcw size={10} />
+          <RotateCcw className="h-2.5 w-2.5" />
           <span>Reopen</span>
         </button>
       )
@@ -150,40 +150,37 @@ function KanbanCard({
       style={style}
       {...attributes}
       {...listeners}
-      className={`kanban-card ${isDragging ? 'dragging' : ''}`}
       onClick={() => onSelectIssue(issue)}
+      className={cn(
+        'rounded-md border border-border/80 bg-card p-3 shadow-xs hover:border-border hover:shadow-md transition-all cursor-pointer select-none space-y-2 group',
+        isDragging && 'opacity-30 border-primary/50',
+        isOverlay && 'shadow-2xl border-primary scale-102 bg-card/95 backdrop-blur-sm'
+      )}
     >
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
-        <span className="issue-identifier-tag">{getIssueDisplayIdentifier(issue.identifier)}</span>
-        <span
-          className="badge-pill"
-          style={{
-            backgroundColor: priorityStyles.bg,
-            color: priorityStyles.text,
-            borderColor: priorityStyles.border,
-            fontSize: '10px',
-            padding: '1px 6px',
-          }}
-        >
-          {issue.priority}
+      <div className="flex items-center justify-between gap-1.5">
+        <span className="font-mono text-[10.5px] font-medium text-primary">
+          {getIssueDisplayIdentifier(issue.identifier)}
         </span>
+        <div className="flex items-center gap-1">
+          <TypeBadge type={issue.issue_type} showLabel={false} />
+          <PriorityBadge priority={issue.priority} showLabel={false} />
+        </div>
       </div>
 
-      <div style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)', marginBottom: '8px', lineHeight: 1.4 }}>
+      <p className="text-[12.5px] font-medium text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
         {issue.title}
-      </div>
+      </p>
 
       {issue.labels && issue.labels.length > 0 && (
-        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '8px' }}>
+        <div className="flex items-center gap-1 flex-wrap pt-0.5">
           {issue.labels.map((lbl) => (
             <span
               key={lbl.id}
-              className="label-chip"
+              className="px-1.5 py-0.2 rounded text-[9.5px] font-medium border"
               style={{
-                backgroundColor: `${lbl.color}20`,
+                backgroundColor: `${lbl.color}15`,
                 color: lbl.color,
-                border: `1px solid ${lbl.color}40`,
-                fontSize: '10px',
+                borderColor: `${lbl.color}40`,
               }}
             >
               {lbl.name}
@@ -192,35 +189,38 @@ function KanbanCard({
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '6px', borderTop: '1px solid var(--border-subtle)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {issue.assignee ? (
-            <div
-              className="user-avatar"
-              style={{ width: '18px', height: '18px', fontSize: '9px' }}
-              title={`Assigned to ${issue.assignee.username}`}
-            >
-              {issue.assignee.username.substring(0, 2)}
-            </div>
-          ) : (
-            <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Unassigned</span>
-          )}
-        </div>
+      <div className="flex items-center justify-between pt-2 border-t border-border/50 text-[11px]">
+        {issue.assignee ? (
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Avatar className="h-4 w-4 shrink-0">
+              {issue.assignee.avatar_url && (
+                <AvatarImage src={issue.assignee.avatar_url} alt={issue.assignee.username} />
+              )}
+              <AvatarFallback className="text-[8px] font-bold bg-primary/20 text-primary">
+                {issue.assignee.username.substring(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            <span className="text-muted-foreground truncate max-w-[80px]">
+              {issue.assignee.display_name || issue.assignee.username}
+            </span>
+          </div>
+        ) : (
+          <span className="text-muted-foreground text-[10px]">Unassigned</span>
+        )}
 
-        <div>{renderQuickAction()}</div>
+        <div className="shrink-0">{renderQuickAction()}</div>
       </div>
     </div>
   )
 }
 
-// Droppable Column Component
 function KanbanColumn({
   column,
   issues,
   onSelectIssue,
   onUpdateStatus,
 }: {
-  column: { id: IssueStatus; title: string; color: string }
+  column: { id: IssueStatus; title: string; color: string; dotClass: string }
   issues: Issue[]
   onSelectIssue: (issue: Issue) => void
   onUpdateStatus: (issue: Issue, newStatus: IssueStatus) => Promise<void>
@@ -233,21 +233,24 @@ function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className="kanban-column"
-      style={{
-        borderColor: isOver ? column.color : 'var(--border-subtle)',
-        boxShadow: isOver ? `0 0 12px ${column.color}30` : 'none',
-      }}
+      className={cn(
+        'flex flex-col rounded-lg border border-border/70 bg-sidebar/50 p-2 min-w-[260px] max-w-[320px] flex-1 shrink-0 transition-colors',
+        isOver && 'border-primary/60 bg-primary/5 shadow-[0_0_15px_rgba(99,102,241,0.1)]'
+      )}
     >
-      <div className="kanban-column-header">
-        <div className="kanban-column-title">
-          <span style={{ width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: column.color }} />
-          <span>{column.title}</span>
+      {/* Column Header */}
+      <div className="flex items-center justify-between px-2 py-1.5 mb-2">
+        <div className="flex items-center gap-2">
+          <span className={cn('h-2 w-2 rounded-full shrink-0', column.dotClass)} />
+          <span className="text-[12.5px] font-semibold text-foreground">{column.title}</span>
         </div>
-        <span className="nav-badge">{issues.length}</span>
+        <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono font-medium bg-muted text-muted-foreground">
+          {issues.length}
+        </span>
       </div>
 
-      <div className="kanban-card-list">
+      {/* Cards List */}
+      <div className="flex-1 space-y-2 overflow-y-auto max-h-[calc(100vh-210px)] pr-0.5">
         {issues.map((issue) => (
           <KanbanCard
             key={issue.id}
@@ -256,6 +259,12 @@ function KanbanColumn({
             onUpdateStatus={onUpdateStatus}
           />
         ))}
+
+        {issues.length === 0 && (
+          <div className="flex items-center justify-center p-6 border border-dashed border-border/60 rounded-md text-center">
+            <span className="text-[11px] text-muted-foreground">No issues in {column.title.toLowerCase()}</span>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -289,17 +298,17 @@ export function KanbanBoard({
 
     if (!over) return
 
-    const activeIssue = active.data.current?.issue as Issue
-    const overColumnStatus = (over.data.current?.status || over.id.toString().replace('column-', '')) as IssueStatus
+    const draggedIssue = active.data.current?.issue as Issue
+    const targetStatus = (over.data.current?.status || over.id.toString().replace('column-', '')) as IssueStatus
 
-    if (activeIssue && overColumnStatus && activeIssue.status !== overColumnStatus) {
-      await onUpdateStatus(activeIssue, overColumnStatus)
+    if (draggedIssue && targetStatus && draggedIssue.status !== targetStatus) {
+      await onUpdateStatus(draggedIssue, targetStatus)
     }
   }
 
   return (
     <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
-      <div className="kanban-board-container">
+      <div className="flex gap-3 overflow-x-auto pb-4 pt-1 w-full min-w-0">
         {COLUMNS.map((col) => {
           const colIssues = issues.filter((i) => i.status === col.id)
           return (

@@ -1,78 +1,56 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { api } from '../api/client'
 import {
   Bug,
-  Lock,
   Mail,
+  Lock,
   User as UserIcon,
-  ArrowRight,
-  FlaskConical,
-  CheckCircle,
-  Eye,
-  EyeOff,
   Sparkles,
+  ArrowRight,
+  Loader2,
+  CheckCircle2,
+  AlertCircle,
+  HelpCircle,
+  ChevronLeft,
 } from 'lucide-react'
 import { toast } from 'sonner'
-
-type AuthViewMode = 'LOGIN' | 'REGISTER' | 'FORGOT' | 'GUEST' | 'NEW_OAUTH_USER'
+import { StackedLogo } from './StackedLogo'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card'
+import { Tabs, TabsList, TabsTrigger } from './ui/tabs'
 
 interface PendingOAuthData {
   pending_token: string
-  provider: 'GOOGLE' | 'GITHUB'
-  email?: string
-  username?: string
+  provider: string
+  email: string
+  name: string
+  suggested_username: string
   github_username?: string
-  name?: string
 }
+
+type AuthMode = 'LOGIN' | 'REGISTER' | 'GUEST' | 'FORGOT' | 'RESET' | 'NEW_OAUTH_USER'
 
 export function AuthModal() {
   const { login, register, guestAuth, completeOAuthRegistration, setSessionToken } = useAuth()
-  const [viewMode, setViewMode] = useState<AuthViewMode>('LOGIN')
 
-  // Form states
-  const [identifier, setIdentifier] = useState('') // Login username or email
+  const [authMode, setAuthMode] = useState<AuthMode>('LOGIN')
+  const [loading, setLoading] = useState(false)
+  const [oauthInitiating, setOauthInitiating] = useState<'google' | 'github' | null>(null)
+
+  // Form Fields
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [forgotEmail, setForgotEmail] = useState('')
-  const [forgotSent, setForgotSent] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetToken, setResetToken] = useState('')
 
-  // Pending OAuth state for new user onboarding (only username asked)
+  // OAuth Pending state
   const [pendingOAuth, setPendingOAuth] = useState<PendingOAuthData | null>(null)
   const [chosenUsername, setChosenUsername] = useState('')
 
-  // Centralized state reset
-  const resetOAuthState = useCallback(() => {
-    setLoading(false)
-    setPendingOAuth(null)
-    setChosenUsername('')
-    setViewMode('LOGIN')
-    if (window.location.hash) {
-      window.history.replaceState(null, '', window.location.pathname + window.location.search)
-    }
-  }, [])
-
-  // Clear loading state on back/forward navigation (bfcache) or window focus
-  useEffect(() => {
-    const handlePageShow = () => {
-      setLoading(false)
-    }
-    const handleFocus = () => {
-      setLoading(false)
-    }
-
-    window.addEventListener('pageshow', handlePageShow)
-    window.addEventListener('focus', handleFocus)
-    return () => {
-      window.removeEventListener('pageshow', handlePageShow)
-      window.removeEventListener('focus', handleFocus)
-    }
-  }, [])
-
-  // Check URL hash for OAuth redirect results on component mount or hash changes
+  // Parse OAuth Callback or Hash parameters
   useEffect(() => {
     const processHash = () => {
       const hash = window.location.hash
@@ -81,125 +59,176 @@ export function AuthModal() {
       const hashContent = hash.startsWith('#') ? hash.substring(1) : hash
       const params = new URLSearchParams(hashContent)
 
+      const oauthError = params.get('oauth_error')
       const authToken = params.get('auth_token')
       const oauthPending = params.get('oauth_pending')
-      const oauthError = params.get('oauth_error')
+
+      if (oauthError) {
+        toast.error(decodeURIComponent(oauthError))
+        resetOAuthState()
+        return
+      }
 
       if (authToken) {
-        // Clear hash immediately
         window.history.replaceState(null, '', window.location.pathname + window.location.search)
         setLoading(true)
         setSessionToken(authToken)
           .then(() => {
-            toast.success('Signed in successfully with OAuth!')
+            toast.success('Signed in successfully!')
           })
           .catch((err: any) => {
             toast.error(err.message || 'Failed to establish session')
           })
           .finally(() => {
             setLoading(false)
+            setOauthInitiating(null)
           })
         return
       }
 
       if (oauthPending) {
-        const provider = (params.get('provider') || 'GOOGLE') as 'GOOGLE' | 'GITHUB'
-        const userEmail = params.get('email') || undefined
-        const ghUsername = params.get('github_username') || undefined
-        const suggested = params.get('suggested') || ghUsername || (userEmail ? userEmail.split('@')[0] : '')
-        const name = params.get('name') || undefined
+        const provider = params.get('provider') || 'GOOGLE'
+        const pendingEmail = params.get('email') || ''
+        const pendingName = params.get('name') || ''
+        const suggested = params.get('suggested') || pendingEmail.split('@')[0] || ''
+        const githubUsername = params.get('github_username') || undefined
 
-        // Clear hash from URL immediately
-        window.history.replaceState(null, '', window.location.pathname + window.location.search)
-
-        setLoading(false)
         setPendingOAuth({
           pending_token: oauthPending,
           provider,
-          email: userEmail,
-          github_username: ghUsername,
-          name,
+          email: pendingEmail,
+          name: pendingName,
+          suggested_username: suggested,
+          github_username: githubUsername,
         })
-        setChosenUsername(suggested.replace(/[^a-zA-Z0-9_-]/g, '_'))
-        setViewMode('NEW_OAUTH_USER')
-        return
-      }
-
-      if (oauthError) {
+        setChosenUsername(suggested)
+        setAuthMode('NEW_OAUTH_USER')
         window.history.replaceState(null, '', window.location.pathname + window.location.search)
-        setLoading(false)
-        setPendingOAuth(null)
-        setViewMode('LOGIN')
-        const decodedError = decodeURIComponent(oauthError)
-        if (decodedError.toLowerCase().includes('denied') || decodedError.toLowerCase().includes('cancel')) {
-          toast.info('Sign-in was canceled.')
-        } else {
-          toast.error(decodedError)
-        }
       }
     }
 
     processHash()
     window.addEventListener('hashchange', processHash)
     return () => window.removeEventListener('hashchange', processHash)
-  }, [setSessionToken])
+  }, [])
 
-  // =========================================================================
-  // Google OAuth Real Authorization Flow
-  // =========================================================================
+  const resetOAuthState = () => {
+    setPendingOAuth(null)
+    setChosenUsername('')
+    setOauthInitiating(null)
+    setLoading(false)
+    setAuthMode('LOGIN')
+    if (window.location.hash) {
+      window.history.replaceState(null, '', window.location.pathname + window.location.search)
+    }
+  }
+
+  // Google OAuth Initiate
   const handleGoogleOAuth = async () => {
-    setLoading(true)
+    setOauthInitiating('google')
     try {
       const res = await api.auth.getGoogleAuthUrl()
       if (res.url) {
         window.location.href = res.url
-      } else {
-        toast.error('Failed to obtain Google authorization URL')
-        setLoading(false)
       }
     } catch (err: any) {
-      toast.error(err.message || 'Google OAuth is currently unavailable')
-      setLoading(false)
+      toast.error(err.message || 'Google OAuth failed to start')
+      setOauthInitiating(null)
     }
   }
 
-  // =========================================================================
-  // GitHub OAuth Real Authorization Flow
-  // =========================================================================
+  // GitHub OAuth Initiate
   const handleGitHubOAuth = async () => {
-    setLoading(true)
+    setOauthInitiating('github')
     try {
       const res = await api.auth.getGitHubAuthUrl()
       if (res.url) {
         window.location.href = res.url
-      } else {
-        toast.error('Failed to obtain GitHub authorization URL')
-        setLoading(false)
       }
     } catch (err: any) {
-      toast.error(err.message || 'GitHub OAuth is currently unavailable')
+      toast.error(err.message || 'GitHub OAuth failed to start')
+      setOauthInitiating(null)
+    }
+  }
+
+  // Email / Password Login
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!username.trim() || !password) {
+      toast.error('Please enter your username/email and password')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await login({
+        username: username.includes('@') ? undefined : username.trim(),
+        email: username.includes('@') ? username.trim() : undefined,
+        password,
+      })
+      toast.success('Welcome back to Kaizen!')
+    } catch (err: any) {
+      toast.error(err.message || 'Invalid username or password')
+    } finally {
       setLoading(false)
     }
   }
 
-  // =========================================================================
-  // Submit Final Username for New OAuth Account
-  // =========================================================================
-  const handleFinishOAuthRegistration = async (e: React.FormEvent) => {
+  // Email / Password Register
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!username.trim() || !email.trim() || !password) {
+      toast.error('All fields are required')
+      return
+    }
+    if (password.length < 8) {
+      toast.error('Password must be at least 8 characters')
+      return
+    }
+
+    setLoading(true)
+    try {
+      await register({
+        username: username.trim(),
+        email: email.trim(),
+        password,
+      })
+      toast.success('Account created! Welcome to Kaizen.')
+    } catch (err: any) {
+      toast.error(err.message || 'Registration failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Guest Instant Session
+  const handleGuestAuth = async () => {
+    const randomGuestNum = Math.floor(1000 + Math.random() * 9000)
+    const guestUser = `guest_${randomGuestNum}`
+    const guestPass = `KaizenGuest_${randomGuestNum}!2026`
+
+    setLoading(true)
+    try {
+      await guestAuth({
+        username: guestUser,
+        password: guestPass,
+      })
+      toast.success(`Guest session started as @${guestUser}`)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to start guest session')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Complete OAuth Username Selection
+  const handleCompleteOAuth = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pendingOAuth || !chosenUsername.trim()) return
+
     const cleanUser = chosenUsername.trim()
-    if (!cleanUser || !pendingOAuth) {
-      toast.error('Please enter a username for your Bugzilla account')
-      return
-    }
-
-    if (cleanUser.length < 3 || cleanUser.length > 50) {
-      toast.error('Username must be between 3 and 50 characters')
-      return
-    }
-
-    if (!/^[a-zA-Z0-9_-]+$/.test(cleanUser)) {
-      toast.error('Username can only contain letters, numbers, hyphens, and underscores')
+    if (cleanUser.length < 3) {
+      toast.error('Username must be at least 3 characters')
       return
     }
 
@@ -209,591 +238,349 @@ export function AuthModal() {
         pending_token: pendingOAuth.pending_token,
         username: cleanUser,
       })
-      toast.success(
-        `Account created with ${pendingOAuth.provider === 'GOOGLE' ? 'Google' : 'GitHub'}! Welcome, ${cleanUser}.`
-      )
-      setPendingOAuth(null)
-      setChosenUsername('')
-      if (window.location.hash) {
-        window.history.replaceState(null, '', window.location.pathname + window.location.search)
-      }
+      toast.success(`Account verified! Welcome, @${cleanUser}.`)
+      resetOAuthState()
     } catch (err: any) {
-      toast.error(err.message || 'Failed to complete registration')
+      toast.error(err.message || 'Username registration failed')
     } finally {
       setLoading(false)
     }
   }
 
-  // =========================================================================
-  // Standard Email / Password Handlers
-  // =========================================================================
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  // Forgot Password
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!identifier.trim() || !password) {
-      toast.error('Please enter your username/email and password')
+    if (!email.trim()) {
+      toast.error('Please enter your email')
       return
     }
-
     setLoading(true)
     try {
-      const isEmail = identifier.includes('@')
-      await login({
-        [isEmail ? 'email' : 'username']: identifier.trim(),
-        password,
-      })
-      toast.success('Signed in successfully!')
+      await api.auth.forgotPassword(email.trim())
+      toast.success('If an account exists, a password reset link has been dispatched.')
+      setAuthMode('LOGIN')
     } catch (err: any) {
-      toast.error(err.message || 'Invalid username/email or password')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!username.trim() || !email.trim() || !password) {
-      toast.error('Please fill in all registration fields')
-      return
-    }
-
-    if (password.length < 8) {
-      toast.error('Password must be at least 8 characters long')
-      return
-    }
-
-    setLoading(true)
-    try {
-      await register({
-        username: username.trim(),
-        email: email.trim().toLowerCase(),
-        password,
-      })
-      toast.success('Account created! A verification email has been dispatched.')
-    } catch (err: any) {
-      toast.error(err.message || 'Registration failed')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleForgotSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!forgotEmail.trim() || !forgotEmail.includes('@')) {
-      toast.error('Please enter a valid email address')
-      return
-    }
-
-    setLoading(true)
-    try {
-      await api.auth.forgotPassword(forgotEmail.trim().toLowerCase())
-      setForgotSent(true)
-      toast.success('Password recovery email dispatched')
-    } catch (err: any) {
-      toast.error(err.message || 'Failed to dispatch recovery email')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleGuestSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!username.trim() || !password) {
-      toast.error('Guest username and password are required')
-      return
-    }
-
-    setLoading(true)
-    try {
-      await guestAuth({
-        username: username.trim(),
-        password,
-      })
-      toast.success(`Welcome to Sandbox, ${username.trim()}!`)
-    } catch (err: any) {
-      toast.error(err.message || 'Guest authentication failed')
+      toast.error(err.message || 'Failed to process request')
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="auth-page-wrapper">
-      <div className="auth-card">
-        {/* Brand Header */}
-        <div className="auth-header">
-          <div className="auth-logo-badge">
-            <Bug size={24} />
+    <div className="min-h-screen w-full flex items-center justify-center p-4 bg-background relative overflow-hidden">
+      {/* Background Decorative Mesh & Glow */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 rounded-full bg-primary/10 blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-40 -right-40 w-96 h-96 rounded-full bg-primary/5 blur-3xl pointer-events-none" />
+
+      <Card className="w-full max-w-md border-border/80 bg-card/90 backdrop-blur-xl shadow-2xl relative z-10">
+        <CardHeader className="space-y-2 text-center pb-4">
+          <div className="mx-auto flex items-center justify-center h-10 w-10 rounded-lg bg-primary/15 border border-primary/30 text-primary shadow-xs">
+            <StackedLogo size={20} color="currentColor" />
           </div>
+          <div className="space-y-0.5">
+            <CardTitle className="text-xl font-bold tracking-tight text-foreground">
+              KAIZEN
+            </CardTitle>
+            <CardDescription className="text-[12px] text-muted-foreground">
+              Issue tracking, refined.
+            </CardDescription>
+          </div>
+        </CardHeader>
 
-          <h2 className="auth-title">
-            {viewMode === 'LOGIN' && 'Sign in to Bugzilla'}
-            {viewMode === 'REGISTER' && 'Create your Bugzilla account'}
-            {viewMode === 'FORGOT' && 'Reset your password'}
-            {viewMode === 'GUEST' && 'Guest Sandbox Access'}
-            {viewMode === 'NEW_OAUTH_USER' && 'Choose your username'}
-          </h2>
-
-          <p className="auth-subtitle">
-            {viewMode === 'LOGIN' && 'Track issues and collaborate with your team'}
-            {viewMode === 'REGISTER' && 'Track issues and collaborate with your team'}
-            {viewMode === 'FORGOT' && 'Enter your email address and we will send a password recovery link'}
-            {viewMode === 'GUEST' && 'Instant access for sandbox testing. No email required.'}
-            {viewMode === 'NEW_OAUTH_USER' &&
-              (pendingOAuth?.provider === 'GOOGLE'
-                ? `Verified with Google as ${pendingOAuth.email}`
-                : `Verified with GitHub as @${pendingOAuth?.github_username || pendingOAuth?.username}`)}
-          </p>
-        </div>
-
-        {/* =========================================================================
-            1. LOGIN VIEW
-           ========================================================================= */}
-        {viewMode === 'LOGIN' && (
-          <>
-            <form onSubmit={handleLoginSubmit} className="auth-form">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Username or Email</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="name@work-email.com or username"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    required
-                    autoFocus
-                  />
+        <CardContent className="space-y-4">
+          {/* OAuth Username Selection Mode */}
+          {authMode === 'NEW_OAUTH_USER' && pendingOAuth ? (
+            <form onSubmit={handleCompleteOAuth} className="space-y-4">
+              <div className="rounded-md border border-primary/30 bg-primary/10 p-3 text-[12px] space-y-1">
+                <div className="flex items-center gap-1.5 font-medium text-primary">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <span>Identity Verified via {pendingOAuth.provider}</span>
                 </div>
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <label className="form-label">Password</label>
-                  <button
-                    type="button"
-                    className="auth-link"
-                    style={{ fontSize: '11px' }}
-                    onClick={() => {
-                      setForgotSent(false)
-                      setForgotEmail(identifier.includes('@') ? identifier : '')
-                      setViewMode('FORGOT')
-                    }}
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="form-input"
-                    style={{ paddingRight: '36px' }}
-                    placeholder="••••••••"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="btn-ghost btn-icon"
-                    style={{ position: 'absolute', right: '4px', top: '4px', padding: '4px', color: 'var(--text-muted)' }}
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                className="btn btn-primary"
-                type="submit"
-                style={{ width: '100%', padding: '10px', marginTop: '4px', fontWeight: 600 }}
-                disabled={loading || !identifier || !password}
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-                {!loading && <ArrowRight size={14} />}
-              </button>
-            </form>
-
-            <div className="auth-divider">or continue with</div>
-
-            <div className="auth-social-buttons">
-              <button
-                type="button"
-                className="social-auth-btn"
-                onClick={handleGoogleOAuth}
-                disabled={loading}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-                <span>Continue with Google</span>
-              </button>
-
-              <button
-                type="button"
-                className="social-auth-btn"
-                onClick={handleGitHubOAuth}
-                disabled={loading}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-                </svg>
-                <span>Continue with GitHub</span>
-              </button>
-
-              <button
-                type="button"
-                className="guest-auth-btn"
-                onClick={() => {
-                  setLoading(false)
-                  setViewMode('GUEST')
-                }}
-                disabled={loading}
-              >
-                <FlaskConical size={14} className="text-muted" />
-                <span>Continue as Guest (Testing Sandbox)</span>
-              </button>
-            </div>
-
-            <div className="auth-footer">
-              Don't have an account?{' '}
-              <button
-                type="button"
-                className="auth-link"
-                onClick={() => {
-                  setLoading(false)
-                  setViewMode('REGISTER')
-                }}
-              >
-                Create one
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* =========================================================================
-            2. REGISTER VIEW
-           ========================================================================= */}
-        {viewMode === 'REGISTER' && (
-          <>
-            <form onSubmit={handleRegisterSubmit} className="auth-form">
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Username</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Choose a username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  autoFocus
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Email Address</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  placeholder="name@work-email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Password</label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="form-input"
-                    style={{ paddingRight: '36px' }}
-                    placeholder="Create a password (min. 8 characters)"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    className="btn-ghost btn-icon"
-                    style={{ position: 'absolute', right: '4px', top: '4px', padding: '4px', color: 'var(--text-muted)' }}
-                    onClick={() => setShowPassword(!showPassword)}
-                    tabIndex={-1}
-                  >
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                  </button>
-                </div>
-              </div>
-
-              <button
-                className="btn btn-primary"
-                type="submit"
-                style={{ width: '100%', padding: '10px', marginTop: '4px', fontWeight: 600 }}
-                disabled={loading || !username || !email || !password}
-              >
-                {loading ? 'Creating account...' : 'Create Account'}
-                {!loading && <ArrowRight size={14} />}
-              </button>
-            </form>
-
-            <div className="auth-divider">or continue with</div>
-
-            <div className="auth-social-buttons">
-              <button
-                type="button"
-                className="social-auth-btn"
-                onClick={handleGoogleOAuth}
-                disabled={loading}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                </svg>
-                <span>Sign up with Google</span>
-              </button>
-
-              <button
-                type="button"
-                className="social-auth-btn"
-                onClick={handleGitHubOAuth}
-                disabled={loading}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path fillRule="evenodd" clipRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.53 1.032 1.53 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" />
-                </svg>
-                <span>Sign up with GitHub</span>
-              </button>
-
-              <button
-                type="button"
-                className="guest-auth-btn"
-                onClick={() => {
-                  setLoading(false)
-                  setViewMode('GUEST')
-                }}
-                disabled={loading}
-              >
-                <FlaskConical size={14} className="text-muted" />
-                <span>Create Guest Account (Sandbox Testing)</span>
-              </button>
-            </div>
-
-            <div className="auth-footer">
-              Already have an account?{' '}
-              <button
-                type="button"
-                className="auth-link"
-                onClick={() => {
-                  setLoading(false)
-                  setViewMode('LOGIN')
-                }}
-              >
-                Sign in
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* =========================================================================
-            3. FORGOT PASSWORD VIEW
-           ========================================================================= */}
-        {viewMode === 'FORGOT' && (
-          <div>
-            {forgotSent ? (
-              <div style={{ textAlign: 'center', padding: '10px 0' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-                  <CheckCircle size={28} className="text-emerald-400" />
-                </div>
-                <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '6px' }}>
-                  Recovery Link Sent
-                </h3>
-                <p style={{ fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: '20px' }}>
-                  If an account exists for <strong>{forgotEmail}</strong>, password reset instructions have been dispatched. Please check your inbox.
+                <p className="text-muted-foreground text-[11px]">
+                  {pendingOAuth.email ? `Linked email: ${pendingOAuth.email}` : `GitHub: @${pendingOAuth.github_username}`}
                 </p>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  style={{ width: '100%', padding: '9px' }}
-                  onClick={() => {
-                    setLoading(false)
-                    setViewMode('LOGIN')
-                  }}
-                >
-                  Return to Sign In
-                </button>
               </div>
-            ) : (
-              <form onSubmit={handleForgotSubmit} className="auth-form">
-                <div className="form-group" style={{ marginBottom: 0 }}>
-                  <label className="form-label">Registered Email Address</label>
-                  <input
+
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-medium text-foreground">
+                  Choose your Kaizen handle
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-[13px] font-mono">
+                    @
+                  </span>
+                  <Input
+                    type="text"
+                    value={chosenUsername}
+                    onChange={(e) => setChosenUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                    placeholder="username"
+                    className="pl-7 font-mono text-[13px]"
+                    required
+                    minLength={3}
+                    maxLength={50}
+                    autoFocus
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Letters, numbers, underscores, and hyphens only.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={resetOAuthState}
+                  disabled={loading}
+                  className="w-1/3 text-[12px]"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading || !chosenUsername.trim()}
+                  className="w-2/3 text-[12px] gap-1.5"
+                >
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowRight className="h-3.5 w-3.5" />}
+                  Complete Setup
+                </Button>
+              </div>
+            </form>
+          ) : authMode === 'FORGOT' ? (
+            /* Forgot Password Mode */
+            <form onSubmit={handleForgotPassword} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[12px] font-medium text-foreground">Registered Email</label>
+                <div className="relative">
+                  <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
                     type="email"
-                    className="form-input"
-                    placeholder="name@work-email.com"
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="dev@domain.com"
+                    className="pl-8 text-[13px]"
                     required
                     autoFocus
                   />
                 </div>
+              </div>
 
-                <button
-                  className="btn btn-primary"
-                  type="submit"
-                  style={{ width: '100%', padding: '10px', marginTop: '4px', fontWeight: 600 }}
-                  disabled={loading || !forgotEmail}
+              <div className="flex items-center justify-between pt-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAuthMode('LOGIN')}
+                  className="text-[12px] gap-1"
                 >
-                  {loading ? 'Sending link...' : 'Send Recovery Link'}
-                  {!loading && <ArrowRight size={14} />}
-                </button>
+                  <ChevronLeft className="h-3.5 w-3.5" /> Back to Sign In
+                </Button>
+                <Button type="submit" disabled={loading} className="text-[12px]">
+                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Send Reset Link'}
+                </Button>
+              </div>
+            </form>
+          ) : (
+            /* Standard Auth (Login / Register / Guest) */
+            <>
+              {/* OAuth Provider Buttons */}
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGoogleOAuth}
+                  disabled={Boolean(oauthInitiating) || loading}
+                  className="w-full justify-center gap-2 h-9 text-[12.5px] border-border hover:bg-muted/40 font-medium"
+                >
+                  {oauthInitiating === 'google' ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24">
+                      <path
+                        fill="#EA4335"
+                        d="M12 5c1.6 0 3 .6 4.1 1.6l3.1-3.1C17.3 1.8 14.8 1 12 1 7.5 1 3.7 3.6 1.9 7.3l3.7 2.9C6.5 7.3 9 5 12 5z"
+                      />
+                      <path
+                        fill="#4285F4"
+                        d="M23.5 12.3c0-.8-.1-1.7-.2-2.3H12v4.6h6.5c-.3 1.5-1.1 2.8-2.4 3.7l3.7 2.9c2.2-2 3.7-5 3.7-8.9z"
+                      />
+                      <path
+                        fill="#FBBC05"
+                        d="M5.6 14.8c-.2-.7-.4-1.5-.4-2.3 0-.8.2-1.6.4-2.3L1.9 7.3C.7 9.7 0 12 0 14.5c0 2.6.7 4.9 1.9 7.2l3.7-2.9z"
+                      />
+                      <path
+                        fill="#34A853"
+                        d="M12 24c3.2 0 6-1.1 8-3l-3.7-2.9c-1.1.7-2.5 1.2-4.3 1.2-3 0-5.5-2.3-6.4-5.2L1.9 17C3.7 20.6 7.5 24 12 24z"
+                      />
+                    </svg>
+                  )}
+                  <span>Continue with Google</span>
+                </Button>
 
-                <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                  <button
-                    type="button"
-                    className="auth-link"
-                    style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
-                    onClick={() => {
-                      setLoading(false)
-                      setViewMode('LOGIN')
-                    }}
-                  >
-                    ← Return to sign in
-                  </button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleGitHubOAuth}
+                  disabled={Boolean(oauthInitiating) || loading}
+                  className="w-full justify-center gap-2 h-9 text-[12.5px] border-border hover:bg-muted/40 font-medium"
+                >
+                  {oauthInitiating === 'github' ? (
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <svg className="h-4 w-4 shrink-0 fill-current text-foreground" viewBox="0 0 24 24">
+                      <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                    </svg>
+                  )}
+                  <span>Continue with GitHub</span>
+                </Button>
+              </div>
+
+              {/* Divider */}
+              <div className="relative my-2">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-border/80" />
                 </div>
-              </form>
-            )}
-          </div>
-        )}
-
-        {/* =========================================================================
-            4. GUEST ACCESS VIEW
-           ========================================================================= */}
-        {viewMode === 'GUEST' && (
-          <form onSubmit={handleGuestSubmit} className="auth-form">
-            <div style={{ background: 'rgba(59, 130, 246, 0.06)', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '10px 12px', borderRadius: 'var(--radius-md)', marginBottom: '4px' }}>
-              <div style={{ fontSize: '11px', color: '#93c5fd', lineHeight: 1.4 }}>
-                <strong>Sandbox Testing:</strong> Instant login without email verification. Guest accounts cannot use email-based password recovery.
-              </div>
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Guest Username *</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="e.g. tester_alex"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Guest Password *</label>
-              <input
-                type="password"
-                className="form-input"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-
-            <button
-              className="btn btn-primary"
-              type="submit"
-              style={{ width: '100%', padding: '10px', marginTop: '6px', fontWeight: 600 }}
-              disabled={loading || !username || !password}
-            >
-              {loading ? 'Entering Sandbox...' : 'Continue to Bugzilla'}
-              {!loading && <ArrowRight size={14} />}
-            </button>
-
-            <div style={{ textAlign: 'center', marginTop: '12px' }}>
-              <button
-                type="button"
-                className="auth-link"
-                style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
-                onClick={() => {
-                  setLoading(false)
-                  setViewMode('LOGIN')
-                }}
-              >
-                ← Return to standard sign in
-              </button>
-            </div>
-          </form>
-        )}
-
-        {/* =========================================================================
-            5. NEW OAUTH USER ONBOARDING (ASK ONLY USERNAME, NO EMAIL/PASSWORD)
-           ========================================================================= */}
-        {viewMode === 'NEW_OAUTH_USER' && (
-          <form onSubmit={handleFinishOAuthRegistration} className="auth-form">
-            <div style={{ background: 'rgba(34, 197, 94, 0.08)', border: '1px solid rgba(34, 197, 94, 0.25)', padding: '12px', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(34, 197, 94, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Sparkles size={16} className="text-emerald-400" />
-              </div>
-              <div style={{ flex: 1, fontSize: '12px' }}>
-                <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Identity Verified</div>
-                <div style={{ color: 'var(--text-secondary)', marginTop: '1px' }}>
-                  {pendingOAuth?.provider === 'GOOGLE'
-                    ? `Google account ${pendingOAuth.email}`
-                    : `GitHub account @${pendingOAuth?.github_username || pendingOAuth?.username}`}
+                <div className="relative flex justify-center text-[10px] uppercase">
+                  <span className="bg-card px-2 text-muted-foreground font-medium">
+                    Or continue with
+                  </span>
                 </div>
               </div>
-            </div>
 
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Choose your Bugzilla Username *</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. dev_alex"
-                  value={chosenUsername}
-                  onChange={(e) => setChosenUsername(e.target.value)}
-                  required
-                  autoFocus
-                />
+              {/* Mode Switcher Tabs */}
+              <Tabs value={authMode} onValueChange={(val) => setAuthMode(val as AuthMode)} className="w-full">
+                <TabsList className="grid w-full grid-cols-2 h-8">
+                  <TabsTrigger value="LOGIN" className="text-[12px]">Sign In</TabsTrigger>
+                  <TabsTrigger value="REGISTER" className="text-[12px]">Create Account</TabsTrigger>
+                </TabsList>
+              </Tabs>
+
+              {/* Sign In Form */}
+              {authMode === 'LOGIN' && (
+                <form onSubmit={handleLogin} className="space-y-3 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">
+                      Username or Email
+                    </label>
+                    <div className="relative">
+                      <UserIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="developer or dev@domain.com"
+                        className="pl-8 text-[13px]"
+                        required
+                        autoComplete="username"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[11px] font-medium text-muted-foreground">Password</label>
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode('FORGOT')}
+                        className="text-[11px] text-primary hover:underline"
+                      >
+                        Forgot?
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="pl-8 text-[13px]"
+                        required
+                        autoComplete="current-password"
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="submit" disabled={loading} className="w-full text-[12.5px] font-medium mt-1">
+                    {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Sign In'}
+                  </Button>
+                </form>
+              )}
+
+              {/* Create Account Form */}
+              {authMode === 'REGISTER' && (
+                <form onSubmit={handleRegister} className="space-y-3 pt-1">
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">Username</label>
+                    <div className="relative">
+                      <UserIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="text"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                        placeholder="username"
+                        className="pl-8 text-[13px]"
+                        required
+                        minLength={3}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">Email Address</label>
+                    <div className="relative">
+                      <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="dev@domain.com"
+                        className="pl-8 text-[13px]"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-medium text-muted-foreground">Password</label>
+                    <div className="relative">
+                      <Lock className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="At least 8 characters"
+                        className="pl-8 text-[13px]"
+                        required
+                        minLength={8}
+                      />
+                    </div>
+                  </div>
+
+                  <Button type="submit" disabled={loading} className="w-full text-[12.5px] font-medium mt-1">
+                    {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Create Account'}
+                  </Button>
+                </form>
+              )}
+
+              {/* Guest / Sandbox Quick Session */}
+              <div className="pt-2 border-t border-border/60">
+                <Button
+                  type="button"
+                  variant="subtle"
+                  onClick={handleGuestAuth}
+                  disabled={loading}
+                  className="w-full justify-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground h-8"
+                >
+                  <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Start Instant Guest Sandbox Session</span>
+                </Button>
               </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                This will be your unique handle displayed on issues and commits.
-              </span>
-            </div>
-
-            <button
-              className="btn btn-primary"
-              type="submit"
-              style={{ width: '100%', padding: '10px', marginTop: '6px', fontWeight: 600 }}
-              disabled={loading || !chosenUsername.trim()}
-            >
-              {loading ? 'Creating account...' : 'Complete Account Setup'}
-              {!loading && <ArrowRight size={14} />}
-            </button>
-
-            <div style={{ textAlign: 'center', marginTop: '12px' }}>
-              <button
-                type="button"
-                className="auth-link"
-                style={{ fontSize: '12px', color: 'var(--text-secondary)' }}
-                onClick={resetOAuthState}
-              >
-                Cancel and return
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

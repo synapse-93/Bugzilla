@@ -3,7 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { Project, Issue, Label, ProjectMember, Activity, Milestone, IssueStatus } from './types'
 import { api } from './api/client'
 import { Header } from './components/Header'
-import { Sidebar } from './components/Sidebar'
+import { Sidebar, SidebarContent, ActiveView } from './components/Sidebar'
 import { AuthModal } from './components/AuthModal'
 import { ProjectOverview } from './components/ProjectOverview'
 import { IssueList } from './components/IssueList'
@@ -19,11 +19,14 @@ import { CreateProjectModal } from './components/CreateProjectModal'
 import { IssueDetailModal } from './components/IssueDetailModal'
 import { CommandPalette } from './components/CommandPalette'
 import { NotificationsDrawer } from './components/NotificationsDrawer'
-import { FolderPlus, PlusCircle } from 'lucide-react'
+import { StackedLogo } from './components/StackedLogo'
+import { Sheet, SheetContent } from './components/ui/sheet'
+import { Button } from './components/ui/button'
+import { Card } from './components/ui/card'
+import { FolderPlus, PlusCircle, Loader2 } from 'lucide-react'
 import { Toaster, toast } from 'sonner'
-import './styles.css'
 
-function BugzillaApp() {
+function KaizenApp() {
   const { user, isLoading: authLoading } = useAuth()
 
   // Project state
@@ -40,12 +43,11 @@ function BugzillaApp() {
   const [loadingIssues, setLoadingIssues] = useState(false)
 
   // View state
-  const [activeView, setActiveView] = useState<
-    'overview' | 'issues' | 'board' | 'milestones' | 'analytics' | 'collaborators' | 'profile' | 'settings'
-  >('overview')
+  const [activeView, setActiveView] = useState<ActiveView>('overview')
   const [filters, setFilters] = useState<Record<string, string | undefined>>({})
 
-  // Modals state
+  // Modals & Navigation state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false)
   const [isCreateIssueOpen, setIsCreateIssueOpen] = useState(false)
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null)
@@ -54,7 +56,7 @@ function BugzillaApp() {
   const [isInvitationsOpen, setIsInvitationsOpen] = useState(false)
   const [pendingInvitationsCount, setPendingInvitationsCount] = useState(0)
 
-  // Global Keyboard Shortcuts (Cmd+K and C)
+  // Global Keyboard Shortcuts (Cmd+K / Ctrl+K and C)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement
@@ -247,15 +249,16 @@ function BugzillaApp() {
 
   const handleDeleteMilestone = (milestoneId: number | string) => {
     setMilestones(milestones.filter((m) => String(m.id) !== String(milestoneId)))
-    toast.success('Milestone deleted')
   }
 
   if (authLoading) {
     return (
-      <div className="modal-overlay">
-        <div style={{ color: 'var(--text-secondary)', fontSize: '14px', fontWeight: 500 }}>
-          Initializing Bugzilla...
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-background gap-3">
+        <div className="flex items-center justify-center h-10 w-10 rounded-lg bg-primary/20 text-primary animate-pulse">
+          <StackedLogo size={22} color="currentColor" />
         </div>
+        <p className="text-[13px] font-semibold text-foreground tracking-tight">KAIZEN</p>
+        <p className="text-[11px] text-muted-foreground">Initializing workspace...</p>
       </div>
     )
   }
@@ -270,7 +273,8 @@ function BugzillaApp() {
   }
 
   return (
-    <div className="app-container">
+    <div className="flex min-h-screen bg-background text-foreground antialiased selection:bg-primary/20">
+      {/* Desktop Persistent Sidebar */}
       <Sidebar
         projects={projects}
         currentProject={currentProject}
@@ -285,31 +289,67 @@ function BugzillaApp() {
         onOpenInvitations={() => setIsInvitationsOpen(true)}
       />
 
-      <main className="app-main">
+      {/* Mobile Drawer Sheet */}
+      <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
+        <SheetContent side="left" className="p-0 w-64 border-r border-sidebar-border bg-sidebar">
+          <SidebarContent
+            projects={projects}
+            currentProject={currentProject}
+            onSelectProject={(proj) => {
+              setCurrentProject(proj)
+              setIsMobileMenuOpen(false)
+            }}
+            onOpenCreateProject={() => {
+              setIsMobileMenuOpen(false)
+              setIsCreateProjectOpen(true)
+            }}
+            activeView={activeView}
+            onChangeView={(view) => {
+              setActiveView(view)
+              setIsMobileMenuOpen(false)
+            }}
+            issueCount={issues.length}
+            memberCount={members.length}
+            labelCount={labels.length}
+            pendingInvitationsCount={pendingInvitationsCount}
+            onOpenInvitations={() => {
+              setIsMobileMenuOpen(false)
+              setIsInvitationsOpen(true)
+            }}
+            onNavigateMobile={() => setIsMobileMenuOpen(false)}
+          />
+        </SheetContent>
+      </Sheet>
+
+      {/* Main App Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         <Header
           currentProject={currentProject}
-          onOpenCreateIssue={() => setIsCreateIssueOpen(true)}
           activeView={activeView}
+          onOpenCreateIssue={() => setIsCreateIssueOpen(true)}
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
           onOpenNotifications={() => setIsNotificationsOpen(true)}
-          unreadNotificationsCount={activities.length > 0 ? Math.min(activities.length, 5) : 0}
+          onOpenMobileMenu={() => setIsMobileMenuOpen(true)}
+          unreadNotificationsCount={pendingInvitationsCount > 0 ? pendingInvitationsCount : 0}
         />
 
-        <div className="view-content">
+        <main className="flex-1 overflow-y-auto p-3.5 md:p-6 lg:p-8">
           {activeView === 'collaborators' ? (
             <CollaboratorDiscoveryView currentProject={currentProject} projects={projects} />
           ) : activeView === 'profile' ? (
             <ProfileView />
           ) : !currentProject ? (
-            <div className="card empty-state py-12">
-              <FolderPlus size={44} className="text-muted mb-3" />
-              <div className="empty-state-title">No Project Selected</div>
-              <p className="empty-state-desc">Create your first project to start tracking issues.</p>
-              <button className="btn btn-primary" onClick={() => setIsCreateProjectOpen(true)}>
-                <PlusCircle size={15} />
+            <Card className="p-12 text-center border-dashed max-w-lg mx-auto my-12">
+              <FolderPlus className="h-12 w-12 text-muted-foreground/50 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-foreground">No Project Selected</h3>
+              <p className="text-[12.5px] text-muted-foreground mt-1 mb-5">
+                Create a new project workspace to start tracking bugs, features, and milestones.
+              </p>
+              <Button onClick={() => setIsCreateProjectOpen(true)} className="gap-1.5 text-[12.5px]">
+                <PlusCircle className="h-4 w-4" />
                 <span>Create New Project</span>
-              </button>
-            </div>
+              </Button>
+            </Card>
           ) : (
             <>
               {activeView === 'overview' && (
@@ -374,10 +414,10 @@ function BugzillaApp() {
               )}
             </>
           )}
-        </div>
-      </main>
+        </main>
+      </div>
 
-      {/* Global Modals & Drawers */}
+      {/* Command Palette */}
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
@@ -392,6 +432,7 @@ function BugzillaApp() {
         onOpenCreateProject={() => setIsCreateProjectOpen(true)}
       />
 
+      {/* Notifications Drawer */}
       <NotificationsDrawer
         isOpen={isNotificationsOpen}
         onClose={() => setIsNotificationsOpen(false)}
@@ -401,6 +442,7 @@ function BugzillaApp() {
         onOpenInvitations={() => setIsInvitationsOpen(true)}
       />
 
+      {/* Invitations Modal */}
       <InvitationsModal
         isOpen={isInvitationsOpen}
         onClose={() => setIsInvitationsOpen(false)}
@@ -411,6 +453,7 @@ function BugzillaApp() {
         }}
       />
 
+      {/* Create Project Modal */}
       {isCreateProjectOpen && (
         <CreateProjectModal
           onClose={() => setIsCreateProjectOpen(false)}
@@ -418,6 +461,7 @@ function BugzillaApp() {
         />
       )}
 
+      {/* Create Issue Modal */}
       {isCreateIssueOpen && currentProject && (
         <CreateIssueModal
           projectId={currentProject.id}
@@ -428,6 +472,7 @@ function BugzillaApp() {
         />
       )}
 
+      {/* Issue Detail Modal */}
       {selectedIssue && currentProject && (
         <IssueDetailModal
           issue={selectedIssue}
@@ -441,7 +486,7 @@ function BugzillaApp() {
         />
       )}
 
-      {/* Global Toasts */}
+      {/* Global Toast Notifications */}
       <Toaster theme="dark" position="bottom-right" richColors />
     </div>
   )
@@ -450,7 +495,7 @@ function BugzillaApp() {
 export default function App() {
   return (
     <AuthProvider>
-      <BugzillaApp />
+      <KaizenApp />
     </AuthProvider>
   )
 }

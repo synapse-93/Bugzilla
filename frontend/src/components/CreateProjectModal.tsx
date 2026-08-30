@@ -1,8 +1,19 @@
 import React, { useState } from 'react'
 import { Project } from '../types'
 import { api } from '../api/client'
-import { X, FolderPlus, Sparkles } from 'lucide-react'
+import { FolderPlus, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from './ui/dialog'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import { Textarea } from './ui/textarea'
 
 interface CreateProjectModalProps {
   onClose: () => void
@@ -50,7 +61,7 @@ export function CreateProjectModal({ onClose, onProjectCreated }: CreateProjectM
         key: key.trim(),
         description: description.trim() || undefined,
       })
-      toast.success(`Project "${res.project.name}" created successfully!`)
+      toast.success(`Project "${res.project.name}" created!`)
       onProjectCreated(res.project)
       onClose()
     } catch (err: any) {
@@ -61,77 +72,81 @@ export function CreateProjectModal({ onClose, onProjectCreated }: CreateProjectM
   }
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FolderPlus size={18} className="text-purple-400" />
-            <h3 style={{ fontSize: '15px', fontWeight: 600 }}>Create New Project</h3>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <div className="flex items-center gap-2 text-primary font-semibold">
+            <FolderPlus className="h-4 w-4" />
+            <DialogTitle>Create New Project</DialogTitle>
           </div>
-          <button className="btn-ghost btn-icon" onClick={onClose}>
-            <X size={16} />
-          </button>
-        </div>
+          <DialogDescription>
+            Initialize a new project workspace for issue tracking and milestones.
+          </DialogDescription>
+        </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <div className="form-group">
-              <label className="form-label">Project Name *</label>
-              <input
-                type="text"
-                className="form-input"
-                placeholder="e.g. Bugzilla Frontend, Core API"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                required
-                autoFocus
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Project Key *</label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="e.g. TEST, PROJ"
-                  value={key}
-                  onChange={(e) => handleKeyChange(e.target.value)}
-                  maxLength={10}
-                  required
-                />
-              </div>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                Used as the prefix for all issue identifiers, e.g. <strong>{key || 'KEY'}-1</strong>, <strong>{key || 'KEY'}-42</strong>.
-              </span>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Description</label>
-              <textarea
-                className="form-textarea"
-                placeholder="What is the goal of this project?"
-                rows={3}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-              />
-            </div>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">
+              Project Name <span className="text-destructive">*</span>
+            </label>
+            <Input
+              type="text"
+              placeholder="e.g. Kaizen Mobile, Core Engine"
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              required
+              autoFocus
+              className="text-[13px]"
+            />
           </div>
 
-          <div className="modal-footer">
-            <button className="btn btn-secondary" type="button" onClick={onClose}>
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">
+              Project Key <span className="text-destructive">*</span>
+            </label>
+            <Input
+              type="text"
+              placeholder="e.g. ENG, KZN"
+              value={key}
+              onChange={(e) => handleKeyChange(e.target.value)}
+              maxLength={10}
+              required
+              className="font-mono text-[13px] uppercase"
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Used as prefix for issues, e.g.{' '}
+              <strong className="font-mono text-primary">{key || 'KEY'}-1</strong>,{' '}
+              <strong className="font-mono text-primary">{key || 'KEY'}-42</strong>.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[12px] font-medium text-foreground">Description</label>
+            <Textarea
+              placeholder="What are the goals of this project?"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="text-[13px]"
+            />
+          </div>
+
+          <DialogFooter className="pt-2 gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-[12px]">
               Cancel
-            </button>
-            <button
-              className="btn btn-primary"
+            </Button>
+            <Button
               type="submit"
+              size="sm"
               disabled={loading || !name.trim() || key.trim().length < 2}
+              className="text-[12px] gap-1 font-medium"
             >
-              {loading ? 'Creating...' : 'Create Project'}
-            </button>
-          </div>
+              {loading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              <span>Create Project</span>
+            </Button>
+          </DialogFooter>
         </form>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   )
 }

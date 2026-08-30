@@ -16,7 +16,10 @@ import {
   Area,
   CartesianGrid,
 } from 'recharts'
-import { BarChart2, PieChart as PieIcon, TrendingUp, Tag, AlertCircle } from 'lucide-react'
+import { BarChart2, PieChart as PieIcon, TrendingUp, Tag, Activity } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from './ui/chart'
+import { NeonPatternDefs } from './NeonPatternDefs'
 
 interface AnalyticsViewProps {
   projectId: number
@@ -24,8 +27,8 @@ interface AnalyticsViewProps {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  OPEN: '#60a5fa',
-  IN_PROGRESS: '#facc15',
+  OPEN: '#38bdf8',
+  IN_PROGRESS: '#fbbf24',
   IN_REVIEW: '#c084fc',
   RESOLVED: '#4ade80',
   CLOSED: '#71717a',
@@ -35,7 +38,7 @@ const PRIORITY_COLORS: Record<string, string> = {
   URGENT: '#ef4444',
   HIGH: '#f97316',
   MEDIUM: '#eab308',
-  LOW: '#94a3b8',
+  LOW: '#34d399',
 }
 
 export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
@@ -59,7 +62,6 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
         api.analytics.getPriorityDistribution(projectId).catch(() => null),
       ])
 
-      // Fallback calculation from local issues if backend endpoints are not returning values
       const total = overviewRes ? overviewRes.total_issues : issues.length
       const open = overviewRes
         ? overviewRes.open_issues
@@ -90,21 +92,22 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
         resolutionRate,
       })
 
-      // Transform Status Data
+      // Status
       if (statRes && statRes.distribution) {
-        const sData = statRes.distribution.map((item) => ({
-          name: item.status.replace('_', ' '),
-          value: Number(item.count) || 0,
-          color: STATUS_COLORS[item.status] || '#a1a1aa',
-        }))
-        setStatusData(sData)
+        setStatusData(
+          statRes.distribution.map((item) => ({
+            name: item.status.replace('_', ' '),
+            value: Number(item.count) || 0,
+            color: STATUS_COLORS[item.status] || '#a1a1aa',
+          }))
+        )
       } else {
-        const statusCounts: Record<string, number> = { OPEN: 0, IN_PROGRESS: 0, IN_REVIEW: 0, RESOLVED: 0, CLOSED: 0 }
+        const counts: Record<string, number> = { OPEN: 0, IN_PROGRESS: 0, IN_REVIEW: 0, RESOLVED: 0, CLOSED: 0 }
         issues.forEach((i) => {
-          statusCounts[i.status] = (statusCounts[i.status] || 0) + 1
+          counts[i.status] = (counts[i.status] || 0) + 1
         })
         setStatusData(
-          Object.entries(statusCounts).map(([status, count]) => ({
+          Object.entries(counts).map(([status, count]) => ({
             name: status.replace('_', ' '),
             value: count,
             color: STATUS_COLORS[status] || '#a1a1aa',
@@ -112,21 +115,22 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
         )
       }
 
-      // Transform Priority Data
+      // Priority
       if (priRes && priRes.distribution) {
-        const pData = priRes.distribution.map((item) => ({
-          name: item.priority,
-          value: Number(item.count) || 0,
-          color: PRIORITY_COLORS[item.priority] || '#a1a1aa',
-        }))
-        setPriorityData(pData)
+        setPriorityData(
+          priRes.distribution.map((item) => ({
+            name: item.priority,
+            value: Number(item.count) || 0,
+            color: PRIORITY_COLORS[item.priority] || '#a1a1aa',
+          }))
+        )
       } else {
-        const priorityCounts: Record<string, number> = { URGENT: 0, HIGH: 0, MEDIUM: 0, LOW: 0 }
+        const counts: Record<string, number> = { URGENT: 0, HIGH: 0, MEDIUM: 0, LOW: 0 }
         issues.forEach((i) => {
-          priorityCounts[i.priority] = (priorityCounts[i.priority] || 0) + 1
+          counts[i.priority] = (counts[i.priority] || 0) + 1
         })
         setPriorityData(
-          Object.entries(priorityCounts).map(([priority, count]) => ({
+          Object.entries(counts).map(([priority, count]) => ({
             name: priority,
             value: count,
             color: PRIORITY_COLORS[priority] || '#a1a1aa',
@@ -134,20 +138,21 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
         )
       }
 
-      // Transform Label Data from active issues
+      // Labels
       const labelCounts: Record<string, number> = {}
       issues.forEach((i) => {
         ;(i.labels || []).forEach((lbl) => {
           labelCounts[lbl.name] = (labelCounts[lbl.name] || 0) + 1
         })
       })
-      const lData = Object.entries(labelCounts)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 6)
-      setLabelData(lData)
+      setLabelData(
+        Object.entries(labelCounts)
+          .map(([name, count]) => ({ name, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 6)
+      )
 
-      // Compute simple 7-day trend
+      // 7-day timeline
       const daysMap: Record<string, { created: number; resolved: number }> = {}
       const today = new Date()
       for (let i = 6; i >= 0; i--) {
@@ -184,188 +189,176 @@ export function AnalyticsView({ projectId, issues = [] }: AnalyticsViewProps) {
     }
   }
 
+  const defaultChartConfig: ChartConfig = {
+    issues: { label: 'Issues', color: 'hsl(var(--primary))' },
+    created: { label: 'Created', color: '#38bdf8' },
+    resolved: { label: 'Resolved', color: '#4ade80' },
+  }
+
   if (loading) {
-    return <div className="text-center py-12 text-muted text-sm">Computing analytics metrics...</div>
+    return <div className="text-center py-16 text-muted-foreground text-[13px]">Computing telemetry and analytics...</div>
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div className="space-y-6 max-w-[1400px] w-full min-w-0">
+      <NeonPatternDefs />
+
       {/* Top Metric Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px' }}>
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
-            Total Tracked Issues
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--text-primary)', marginTop: '4px' }}>
-            {summary?.total || 0}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Across all statuses
-          </div>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <Card className="border-border/80 bg-card p-4 space-y-1">
+          <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+            Total Issues
+          </p>
+          <p className="text-2xl font-bold text-foreground">{summary?.total || 0}</p>
+          <p className="text-[10px] text-muted-foreground">Across entire history</p>
+        </Card>
 
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
-            Open / Active Issues
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#60a5fa', marginTop: '4px' }}>
+        <Card className="border-border/80 bg-card p-4 space-y-1">
+          <p className="text-[11px] font-medium text-sky-400 uppercase tracking-wider">
+            Active / Open
+          </p>
+          <p className="text-2xl font-bold text-sky-400">
             {(summary?.open || 0) + (summary?.inProgress || 0) + (summary?.inReview || 0)}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            {summary?.inProgress || 0} in progress
-          </div>
-        </div>
+          </p>
+          <p className="text-[10px] text-muted-foreground">{summary?.inProgress || 0} in active development</p>
+        </Card>
 
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+        <Card className="border-border/80 bg-card p-4 space-y-1">
+          <p className="text-[11px] font-medium text-emerald-400 uppercase tracking-wider">
             Resolution Rate
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#4ade80', marginTop: '4px' }}>
-            {summary?.resolutionRate || 0}%
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+          </p>
+          <p className="text-2xl font-bold text-emerald-400">{summary?.resolutionRate || 0}%</p>
+          <p className="text-[10px] text-muted-foreground">
             {(summary?.resolved || 0) + (summary?.closed || 0)} resolved or closed
-          </div>
-        </div>
+          </p>
+        </Card>
 
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
-            Critical / High Priority
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: '#ef4444', marginTop: '4px' }}>
-            {summary?.criticalBugs || 0}
-          </div>
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-            Requires immediate attention
-          </div>
-        </div>
+        <Card className="border-border/80 bg-card p-4 space-y-1">
+          <p className="text-[11px] font-medium text-red-400 uppercase tracking-wider">
+            Urgent / Critical
+          </p>
+          <p className="text-2xl font-bold text-red-400">{summary?.criticalBugs || 0}</p>
+          <p className="text-[10px] text-muted-foreground">High impact items</p>
+        </Card>
       </div>
 
-      {/* Chart Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '16px' }}>
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Status Distribution */}
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <PieIcon size={16} className="text-blue-400" />
-            <h4 style={{ fontSize: '14px', fontWeight: 600 }}>Status Distribution</h4>
-          </div>
-          <div style={{ width: '100%', height: '240px' }}>
-            <ResponsiveContainer>
+        <Card className="border-border/80 bg-card">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+              <PieIcon className="h-4 w-4 text-sky-400" />
+              <span>Status Distribution</span>
+            </CardTitle>
+            <CardDescription className="text-[11px] text-muted-foreground">
+              Proportion of issues across each pipeline stage
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ChartContainer config={defaultChartConfig} className="h-[220px] w-full">
               <PieChart>
+                <ChartTooltip content={<ChartTooltipContent />} />
                 <Pie
                   data={statusData.filter((d) => d.value > 0)}
                   dataKey="value"
                   nameKey="name"
                   cx="50%"
                   cy="50%"
-                  outerRadius={80}
-                  label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                  labelLine={false}
+                  outerRadius={75}
                 >
-                  {statusData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  {statusData.map((entry, idx) => (
+                    <Cell key={`cell-${idx}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'var(--bg-surface-raised)',
-                    borderColor: 'var(--border-subtle)',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                  }}
-                />
               </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+            </ChartContainer>
+          </CardContent>
+        </Card>
 
-        {/* Priority Distribution */}
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <BarChart2 size={16} className="text-amber-400" />
-            <h4 style={{ fontSize: '14px', fontWeight: 600 }}>Priority Breakdown</h4>
-          </div>
-          <div style={{ width: '100%', height: '240px' }}>
-            <ResponsiveContainer>
-              <BarChart data={priorityData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-                <XAxis dataKey="name" stroke="var(--text-muted)" fontSize={11} />
-                <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'var(--bg-surface-raised)',
-                    borderColor: 'var(--border-subtle)',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                  }}
-                />
-                <Bar dataKey="value" name="Issues" radius={[4, 4, 0, 0]}>
-                  {priorityData.map((entry, index) => (
-                    <Cell key={`cell-bar-${index}`} fill={entry.color} />
+        {/* Priority Breakdown */}
+        <Card className="border-border/80 bg-card">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+              <BarChart2 className="h-4 w-4 text-amber-400" />
+              <span>Priority Breakdown</span>
+            </CardTitle>
+            <CardDescription className="text-[11px] text-muted-foreground">
+              Distribution of issues by priority level
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ChartContainer config={defaultChartConfig} className="h-[220px] w-full">
+              <BarChart data={priorityData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="value" name="Issues" radius={[3, 3, 0, 0]}>
+                  {priorityData.map((entry, idx) => (
+                    <Cell key={`cell-bar-${idx}`} fill={entry.color} />
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+            </ChartContainer>
+          </CardContent>
+        </Card>
 
-        {/* 7-Day Velocity & Activity Trend */}
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <TrendingUp size={16} className="text-emerald-400" />
-            <h4 style={{ fontSize: '14px', fontWeight: 600 }}>7-Day Issue Activity</h4>
-          </div>
-          <div style={{ width: '100%', height: '240px' }}>
-            <ResponsiveContainer>
-              <AreaChart data={timelineData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-                <XAxis dataKey="date" stroke="var(--text-muted)" fontSize={11} />
-                <YAxis stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'var(--bg-surface-raised)',
-                    borderColor: 'var(--border-subtle)',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                  }}
-                />
-                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }} />
-                <Area type="monotone" dataKey="created" name="Created" stroke="#60a5fa" fill="#60a5fa" fillOpacity={0.2} />
+        {/* 7-Day Velocity Trend */}
+        <Card className="border-border/80 bg-card">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+              <TrendingUp className="h-4 w-4 text-emerald-400" />
+              <span>7-Day Issue Activity</span>
+            </CardTitle>
+            <CardDescription className="text-[11px] text-muted-foreground">
+              New vs. resolved issues over the past week
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ChartContainer config={defaultChartConfig} className="h-[220px] w-full">
+              <AreaChart data={timelineData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Legend wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }} />
+                <Area type="monotone" dataKey="created" name="Created" stroke="#38bdf8" fill="#38bdf8" fillOpacity={0.2} />
                 <Area type="monotone" dataKey="resolved" name="Resolved" stroke="#4ade80" fill="#4ade80" fillOpacity={0.2} />
               </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+            </ChartContainer>
+          </CardContent>
+        </Card>
 
         {/* Top Labels Distribution */}
-        <div className="card" style={{ padding: '16px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-            <Tag size={16} className="text-purple-400" />
-            <h4 style={{ fontSize: '14px', fontWeight: 600 }}>Top Labels</h4>
-          </div>
-          {labelData.length === 0 ? (
-            <div className="text-muted text-xs py-12 text-center">No labeled issues yet.</div>
-          ) : (
-            <div style={{ width: '100%', height: '240px' }}>
-              <ResponsiveContainer>
-                <BarChart data={labelData} layout="vertical">
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-subtle)" />
-                  <XAxis type="number" stroke="var(--text-muted)" fontSize={11} allowDecimals={false} />
-                  <YAxis type="category" dataKey="name" stroke="var(--text-muted)" fontSize={11} width={80} />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'var(--bg-surface-raised)',
-                      borderColor: 'var(--border-subtle)',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                    }}
-                  />
-                  <Bar dataKey="count" name="Issues" fill="#818cf8" radius={[0, 4, 4, 0]} />
+        <Card className="border-border/80 bg-card">
+          <CardHeader className="p-4 pb-2">
+            <CardTitle className="text-[13px] font-semibold text-foreground flex items-center gap-1.5">
+              <Tag className="h-4 w-4 text-purple-400" />
+              <span>Top Labels</span>
+            </CardTitle>
+            <CardDescription className="text-[11px] text-muted-foreground">
+              Most frequently applied tags
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            {labelData.length === 0 ? (
+              <div className="h-[220px] flex items-center justify-center text-muted-foreground text-[12px]">
+                No labeled issues recorded yet.
+              </div>
+            ) : (
+              <ChartContainer config={defaultChartConfig} className="h-[220px] w-full">
+                <BarChart data={labelData} layout="vertical" margin={{ top: 10, right: 10, left: 10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" horizontal={false} />
+                  <XAxis type="number" allowDecimals={false} tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }} width={80} />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Bar dataKey="count" name="Issues" fill="#818cf8" radius={[0, 3, 3, 0]} />
                 </BarChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-        </div>
+              </ChartContainer>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )
