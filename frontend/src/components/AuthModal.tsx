@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { StackedLogo } from './StackedLogo'
-import { MinimalIssueHero } from './MinimalIssueHero'
+import { EditorialHeroArt } from './AbstractGeometry'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Card, CardContent } from './ui/card'
@@ -30,12 +30,23 @@ interface PendingOAuthData {
   github_username?: string
 }
 
-type AuthMode = 'LOGIN' | 'REGISTER' | 'GUEST' | 'FORGOT' | 'RESET' | 'NEW_OAUTH_USER'
+export type AuthMode = 'LOGIN' | 'REGISTER' | 'GUEST' | 'FORGOT' | 'RESET' | 'NEW_OAUTH_USER'
 
-export function AuthModal() {
+interface AuthModalProps {
+  initialMode?: AuthMode
+  onClose?: () => void
+}
+
+export function AuthModal({ initialMode = 'LOGIN', onClose }: AuthModalProps) {
   const { login, register, guestAuth, completeOAuthRegistration, setSessionToken } = useAuth()
 
-  const [authMode, setAuthMode] = useState<AuthMode>('LOGIN')
+  const [authMode, setAuthMode] = useState<AuthMode>(initialMode)
+
+  useEffect(() => {
+    if (initialMode) {
+      setAuthMode(initialMode)
+    }
+  }, [initialMode])
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [oauthInitiating, setOauthInitiating] = useState<'google' | 'github' | null>(null)
@@ -474,42 +485,29 @@ export function AuthModal() {
                   </div>
 
                   {/* Divider */}
-                  <div className="relative my-2">
+                  <div className="relative flex items-center justify-center py-1">
                     <div className="absolute inset-0 flex items-center">
                       <div className="w-full border-t border-border/60" />
                     </div>
-                    <div className="relative flex justify-center text-[10px] uppercase">
-                      <span className="bg-card px-2 text-muted-foreground font-mono">
-                        or
-                      </span>
-                    </div>
+                    <span className="relative px-2 text-[10px] text-muted-foreground uppercase bg-card font-mono">
+                      or credentials
+                    </span>
                   </div>
-
-                  {/* Mode Switcher Tabs */}
-                  <Tabs value={authMode} onValueChange={(val) => setAuthMode(val as AuthMode)} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2 h-7.5 rounded-sm">
-                      <TabsTrigger value="LOGIN" className="text-[11.5px] rounded-xs">Sign In</TabsTrigger>
-                      <TabsTrigger value="REGISTER" className="text-[11.5px] rounded-xs">Create Account</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
 
                   {/* Sign In Form */}
                   {authMode === 'LOGIN' && (
-                    <form onSubmit={handleLogin} className="space-y-3 pt-1">
+                    <form onSubmit={handleLogin} className="space-y-3">
                       <div className="space-y-1">
-                        <label className="text-[10.5px] font-medium text-muted-foreground">
-                          Username or Email
-                        </label>
+                        <label className="text-[10.5px] font-medium text-muted-foreground">Username or Email</label>
                         <div className="relative">
                           <UserIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <Input
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
-                            placeholder="developer or dev@domain.com"
-                            className="pl-8 text-[12.5px] rounded-sm"
+                            placeholder="username or developer@org.com"
+                            className="pl-8 text-[12.5px] rounded-sm font-mono"
                             required
-                            autoComplete="username"
                           />
                         </div>
                       </div>
@@ -520,7 +518,7 @@ export function AuthModal() {
                           <button
                             type="button"
                             onClick={() => setAuthMode('FORGOT')}
-                            className="text-[10.5px] text-muted-foreground hover:text-foreground font-mono"
+                            className="text-[10.5px] text-primary hover:underline"
                           >
                             Forgot?
                           </button>
@@ -534,7 +532,6 @@ export function AuthModal() {
                             placeholder="••••••••"
                             className="pl-8 pr-8 text-[12.5px] rounded-sm font-mono"
                             required
-                            autoComplete="current-password"
                           />
                           <button
                             type="button"
@@ -553,9 +550,9 @@ export function AuthModal() {
                     </form>
                   )}
 
-                  {/* Create Account Form */}
+                  {/* Register Form */}
                   {authMode === 'REGISTER' && (
-                    <form onSubmit={handleRegister} className="space-y-3 pt-1">
+                    <form onSubmit={handleRegister} className="space-y-3">
                       <div className="space-y-1">
                         <label className="text-[10.5px] font-medium text-muted-foreground">Username</label>
                         <div className="relative">
@@ -563,25 +560,24 @@ export function AuthModal() {
                           <Input
                             type="text"
                             value={username}
-                            onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
-                            placeholder="username"
+                            onChange={(e) => setUsername(e.target.value)}
+                            placeholder="handle"
                             className="pl-8 text-[12.5px] rounded-sm font-mono"
                             required
-                            minLength={3}
                           />
                         </div>
                       </div>
 
                       <div className="space-y-1">
-                        <label className="text-[10.5px] font-medium text-muted-foreground">Email Address</label>
+                        <label className="text-[10.5px] font-medium text-muted-foreground">Email</label>
                         <div className="relative">
                           <Mail className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
                           <Input
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            placeholder="dev@domain.com"
-                            className="pl-8 text-[12.5px] rounded-sm"
+                            placeholder="developer@org.com"
+                            className="pl-8 text-[12.5px] rounded-sm font-mono"
                             required
                           />
                         </div>
@@ -595,10 +591,9 @@ export function AuthModal() {
                             type={showPassword ? 'text' : 'password'}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            placeholder="At least 8 characters"
+                            placeholder="••••••••"
                             className="pl-8 pr-8 text-[12.5px] rounded-sm font-mono"
                             required
-                            minLength={8}
                           />
                           <button
                             type="button"
@@ -636,9 +631,9 @@ export function AuthModal() {
           </Card>
         </div>
 
-        {/* Right Column: Minimalist Issue Lifecycle Art */}
+        {/* Right Column: Editorial Hero Art */}
         <div className="hidden lg:flex lg:col-span-5 items-center justify-center relative w-full overflow-visible">
-          <MinimalIssueHero className="w-full" />
+          <EditorialHeroArt className="w-full" />
         </div>
 
       </div>

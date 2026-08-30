@@ -4,7 +4,8 @@ import { User, Project, Issue, Label, ProjectMember, Activity, Milestone, IssueS
 import { api } from './api/client'
 import { Header } from './components/Header'
 import { Sidebar, SidebarContent, ActiveView } from './components/Sidebar'
-import { AuthModal } from './components/AuthModal'
+import { AuthModal, AuthMode } from './components/AuthModal'
+import { LandingPage } from './components/LandingPage'
 import { ProjectOverview } from './components/ProjectOverview'
 import { IssueList } from './components/IssueList'
 import { KanbanBoard } from './components/KanbanBoard'
@@ -507,6 +508,25 @@ function AuthenticatedApp({ user }: AuthenticatedAppProps) {
 
 function KaizenApp() {
   const { user, isLoading: authLoading } = useAuth()
+  const [authViewMode, setAuthViewMode] = useState<AuthMode | null>(() => {
+    const hash = typeof window !== 'undefined' ? window.location.hash : ''
+    if (hash && (hash.includes('oauth_pending') || hash.includes('auth_token') || hash.includes('oauth_error'))) {
+      return 'LOGIN'
+    }
+    return null
+  })
+
+  // Sync hash changes for OAuth callbacks
+  useEffect(() => {
+    const handleHash = () => {
+      const hash = window.location.hash
+      if (hash && (hash.includes('oauth_pending') || hash.includes('auth_token') || hash.includes('oauth_error'))) {
+        setAuthViewMode('LOGIN')
+      }
+    }
+    window.addEventListener('hashchange', handleHash)
+    return () => window.removeEventListener('hashchange', handleHash)
+  }, [])
 
   if (authLoading) {
     return (
@@ -515,15 +535,27 @@ function KaizenApp() {
           <StackedLogo size={22} color="currentColor" />
         </div>
         <p className="text-[13px] font-semibold text-foreground tracking-tight">KAIZEN</p>
-        <p className="text-[11px] text-muted-foreground">Initializing workspace...</p>
+        <p className="text-[11px] text-muted-foreground font-mono">Initializing workspace...</p>
       </div>
     )
   }
 
   if (!user) {
+    if (authViewMode) {
+      return (
+        <>
+          <AuthModal
+            initialMode={authViewMode}
+            onClose={() => setAuthViewMode(null)}
+          />
+          <Toaster theme="dark" position="bottom-right" richColors />
+        </>
+      )
+    }
+
     return (
       <>
-        <AuthModal />
+        <LandingPage onOpenAuth={(mode = 'LOGIN') => setAuthViewMode(mode)} />
         <Toaster theme="dark" position="bottom-right" richColors />
       </>
     )
